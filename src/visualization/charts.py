@@ -4,24 +4,68 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from src.common.constants import ARXIV_CATEGORIES, CHART_COLORS
+from src.common.constants import ARXIV_CATEGORIES
+
+DARK_COLORS = [
+    "#6C63FF",  # Purple (primary)
+    "#FF6B6B",  # Coral
+    "#4ECDC4",  # Teal
+    "#FFE66D",  # Yellow
+    "#95E1D3",  # Mint
+    "#F38181",  # Pink
+    "#AA96DA",  # Lavender
+    "#FCBAD3",  # Light Pink
+]
+
+DARK_THEME = dict(
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(color="#FAFAFA"),
+    title=dict(font=dict(color="#FAFAFA", size=18)),
+    xaxis=dict(
+        gridcolor="rgba(255,255,255,0.1)",
+        linecolor="rgba(255,255,255,0.2)",
+        tickcolor="rgba(255,255,255,0.2)",
+        title_font=dict(color="#888"),
+        tickfont=dict(color="#888"),
+    ),
+    yaxis=dict(
+        gridcolor="rgba(255,255,255,0.1)",
+        linecolor="rgba(255,255,255,0.2)",
+        tickcolor="rgba(255,255,255,0.2)",
+        title_font=dict(color="#888"),
+        tickfont=dict(color="#888"),
+    ),
+    legend=dict(
+        font=dict(color="#FAFAFA"),
+        bgcolor="rgba(0,0,0,0)",
+    ),
+)
 
 
 class ChartBuilder:
     """Builds Plotly charts for arXiv trend visualization."""
 
-    def __init__(self, colors: list[str] | None = None) -> None:
+    def __init__(self, colors: list[str] | None = None, dark_mode: bool = True) -> None:
         """Initialize the chart builder.
 
         Args:
             colors: Optional custom color palette
+            dark_mode: Whether to use dark theme
         """
-        self._colors = colors or CHART_COLORS
+        self._colors = colors or DARK_COLORS
+        self._dark_mode = dark_mode
+
+    def _apply_theme(self, fig: go.Figure) -> go.Figure:
+        """Apply dark theme to figure."""
+        if self._dark_mode:
+            fig.update_layout(**DARK_THEME)
+        return fig
 
     def line_chart(
         self,
         data: pd.DataFrame,
-        title: str = "arXiv Publication Trends",
+        title: str = "",
         y_axis_title: str = "Papers",
         date_column: str = "date",
         show_legend: bool = True,
@@ -52,7 +96,7 @@ class ChartBuilder:
                     y=data[col],
                     mode="lines",
                     name=display_name,
-                    line=dict(color=color, width=2),
+                    line=dict(color=color, width=2.5),
                     hovertemplate=(
                         f"<b>{display_name}</b><br>"
                         "Date: %{x|%B %Y}<br>"
@@ -62,38 +106,27 @@ class ChartBuilder:
             )
 
         fig.update_layout(
-            title=dict(
-                text=title,
-                font=dict(size=20),
-            ),
-            xaxis=dict(
-                title="Date",
-                showgrid=True,
-                gridcolor="rgba(128, 128, 128, 0.2)",
-            ),
-            yaxis=dict(
-                title=y_axis_title,
-                showgrid=True,
-                gridcolor="rgba(128, 128, 128, 0.2)",
-            ),
+            title=dict(text=title) if title else None,
+            xaxis=dict(title=""),
+            yaxis=dict(title=y_axis_title),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
-                xanchor="right",
-                x=1,
+                xanchor="left",
+                x=0,
             ) if show_legend else dict(visible=False),
             hovermode="x unified",
-            plot_bgcolor="white",
-            margin=dict(l=60, r=30, t=80, b=60),
+            margin=dict(l=60, r=30, t=60 if title else 30, b=50),
+            height=450,
         )
 
-        return fig
+        return self._apply_theme(fig)
 
     def area_chart(
         self,
         data: pd.DataFrame,
-        title: str = "arXiv Publication Trends",
+        title: str = "",
         y_axis_title: str = "Papers",
         date_column: str = "date",
         stacked: bool = True,
@@ -136,38 +169,27 @@ class ChartBuilder:
             )
 
         fig.update_layout(
-            title=dict(
-                text=title,
-                font=dict(size=20),
-            ),
-            xaxis=dict(
-                title="Date",
-                showgrid=True,
-                gridcolor="rgba(128, 128, 128, 0.2)",
-            ),
-            yaxis=dict(
-                title=y_axis_title,
-                showgrid=True,
-                gridcolor="rgba(128, 128, 128, 0.2)",
-            ),
+            title=dict(text=title) if title else None,
+            xaxis=dict(title=""),
+            yaxis=dict(title=y_axis_title),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
-                xanchor="right",
-                x=1,
+                xanchor="left",
+                x=0,
             ),
             hovermode="x unified",
-            plot_bgcolor="white",
-            margin=dict(l=60, r=30, t=80, b=60),
+            margin=dict(l=60, r=30, t=60 if title else 30, b=50),
+            height=450,
         )
 
-        return fig
+        return self._apply_theme(fig)
 
     def bar_chart(
         self,
         data: pd.DataFrame,
-        title: str = "arXiv Publication Counts",
+        title: str = "",
         y_axis_title: str = "Papers",
         date_column: str = "date",
     ) -> go.Figure:
@@ -199,18 +221,25 @@ class ChartBuilder:
             y="count",
             color="display_name",
             barmode="group",
-            title=title,
-            labels={"count": y_axis_title, date_column: "Date"},
+            title=title if title else None,
+            labels={"count": y_axis_title, date_column: ""},
             color_discrete_sequence=self._colors,
         )
 
         fig.update_layout(
-            legend_title_text="Category",
-            plot_bgcolor="white",
-            margin=dict(l=60, r=30, t=80, b=60),
+            legend_title_text="",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="left",
+                x=0,
+            ),
+            margin=dict(l=60, r=30, t=60 if title else 30, b=50),
+            height=450,
         )
 
-        return fig
+        return self._apply_theme(fig)
 
     def comparison_chart(
         self,
