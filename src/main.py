@@ -108,23 +108,29 @@ def fetch_with_streaming_progress(
     categories: list[str],
     start_date: date,
     end_date: date,
+    max_papers_per_year: int = 10000,
 ) -> dict[str, int]:
-    """Fetch papers with detailed streaming progress, chunked by year.
+    """Fetch papers with detailed streaming progress and live chart updates.
 
     Args:
         categories: List of arXiv category codes
         start_date: Start date for fetching
         end_date: End date for fetching
+        max_papers_per_year: Maximum papers to fetch per year per category
 
     Returns:
         Dict mapping category to papers fetched count
     """
     client = ArxivClient()
     repo = get_repository()
+    aggregator = TimeSeriesAggregator(repo)
+    chart_builder = ChartBuilder()
     results = {}
     total_start = time.time()
 
     years = list(range(start_date.year, end_date.year + 1))
+
+    chart_placeholder = st.empty()
 
     with st.status("Fetching papers from arXiv...", expanded=True) as status:
         for category in categories:
@@ -151,7 +157,7 @@ def fetch_with_streaming_progress(
                     category=category,
                     start_date=year_start,
                     end_date=year_end,
-                    max_results=30000,
+                    max_results=max_papers_per_year,
                 ):
                     papers_batch.append(paper)
 
@@ -163,6 +169,16 @@ def fetch_with_streaming_progress(
                 if papers_batch:
                     repo.batch_insert(papers_batch)
                     cat_total += len(papers_batch)
+
+                    with chart_placeholder.container():
+                        chart_data = aggregator.aggregate_by_category(
+                            categories=categories,
+                            start_date=start_date,
+                            end_date=year_end,
+                        )
+                        if not chart_data.empty and chart_data.drop(columns=["date"]).sum().sum() > 0:
+                            fig = chart_builder.line_chart(chart_data, y_axis_title="Papers")
+                            st.plotly_chart(fig, use_container_width=True, key=f"live_{year}_{category}")
 
                 progress = (year_idx + 1) / len(years)
                 progress_bar.progress(progress)
@@ -256,6 +272,14 @@ def render_sidebar() -> dict:
             label_visibility="collapsed",
         )
 
+        st.markdown("### Fetch Settings")
+        max_papers_per_year = st.select_slider(
+            "Max papers/year",
+            options=[1000, 5000, 10000, 20000, 30000],
+            value=10000,
+            help="Limit papers fetched per year per category. Higher = more complete but slower.",
+        )
+
     return {
         "categories": selected_categories,
         "keyword": keyword.strip() if keyword else None,
@@ -264,6 +288,7 @@ def render_sidebar() -> dict:
         "normalization": normalization.lower(),
         "smoothing_months": SMOOTHING_OPTIONS[smoothing],
         "chart_type": chart_type.lower(),
+        "max_papers_per_year": max_papers_per_year,
     }
 
 
@@ -330,6 +355,7 @@ def main() -> None:
             options["categories"],
             options["start_date"],
             options["end_date"],
+            options["max_papers_per_year"],
         )
         st.cache_data.clear()
         st.rerun()
