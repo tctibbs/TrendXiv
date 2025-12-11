@@ -108,15 +108,13 @@ def fetch_with_streaming_progress(
     categories: list[str],
     start_date: date,
     end_date: date,
-    max_results_per_category: int = 5000,
 ) -> dict[str, int]:
-    """Fetch papers with detailed streaming progress.
+    """Fetch papers with detailed streaming progress, chunked by year.
 
     Args:
         categories: List of arXiv category codes
         start_date: Start date for fetching
         end_date: End date for fetching
-        max_results_per_category: Max papers per category
 
     Returns:
         Dict mapping category to papers fetched count
@@ -126,11 +124,12 @@ def fetch_with_streaming_progress(
     results = {}
     total_start = time.time()
 
+    years = list(range(start_date.year, end_date.year + 1))
+
     with st.status("Fetching papers from arXiv...", expanded=True) as status:
-        for cat_idx, category in enumerate(categories):
+        for category in categories:
             cat_start = time.time()
-            papers_batch = []
-            paper_count = 0
+            cat_total = 0
 
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -138,38 +137,44 @@ def fetch_with_streaming_progress(
             count_placeholder = col2.empty()
             time_placeholder = col3.empty()
 
-            count_placeholder.markdown(f"`0` papers")
+            count_placeholder.markdown("`0` papers")
             time_placeholder.markdown("`0s` elapsed")
 
             progress_bar = st.progress(0)
 
-            for paper in client.search_by_category(
-                category=category,
-                start_date=start_date,
-                end_date=end_date,
-                max_results=max_results_per_category,
-            ):
-                papers_batch.append(paper)
-                paper_count += 1
+            for year_idx, year in enumerate(years):
+                year_start = date(year, 1, 1) if year > start_date.year else start_date
+                year_end = date(year, 12, 31) if year < end_date.year else end_date
 
-                if paper_count % 50 == 0:
-                    elapsed = time.time() - cat_start
-                    count_placeholder.markdown(f"`{paper_count:,}` papers")
-                    time_placeholder.markdown(f"`{elapsed:.0f}s` elapsed")
-                    progress = min(paper_count / max_results_per_category, 1.0)
-                    progress_bar.progress(progress)
+                papers_batch = []
+                for paper in client.search_by_category(
+                    category=category,
+                    start_date=year_start,
+                    end_date=year_end,
+                    max_results=30000,
+                ):
+                    papers_batch.append(paper)
 
-            if papers_batch:
-                repo.batch_insert(papers_batch)
+                    if len(papers_batch) % 100 == 0:
+                        elapsed = time.time() - cat_start
+                        count_placeholder.markdown(f"`{cat_total + len(papers_batch):,}` papers")
+                        time_placeholder.markdown(f"`{elapsed:.0f}s` ({year})")
 
-            elapsed = time.time() - cat_start
-            count_placeholder.markdown(f"`{paper_count:,}` papers")
-            time_placeholder.markdown(f"`{elapsed:.0f}s` elapsed")
+                if papers_batch:
+                    repo.batch_insert(papers_batch)
+                    cat_total += len(papers_batch)
+
+                progress = (year_idx + 1) / len(years)
+                progress_bar.progress(progress)
+
+                elapsed = time.time() - cat_start
+                count_placeholder.markdown(f"`{cat_total:,}` papers")
+                time_placeholder.markdown(f"`{elapsed:.0f}s` elapsed")
+
             progress_bar.progress(1.0)
+            results[category] = cat_total
 
-            results[category] = paper_count
-
-            repo.log_harvest(category, "incremental", start_date, end_date, paper_count)
+            repo.log_harvest(category, "incremental", start_date, end_date, cat_total)
 
         total_elapsed = time.time() - total_start
         total_papers = sum(results.values())
