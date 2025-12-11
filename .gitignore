@@ -49,3 +49,6 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Playwright MCP screenshots
+.playwright-mcp/
