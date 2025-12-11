@@ -70,12 +70,15 @@ class SearchQuery:
             parts.append(cat_query)
 
         if self.keywords:
-            kw_query = " OR ".join(
-                f'abs:"{kw}"' for kw in self.keywords
-            )
+            kw_query = " OR ".join(f'abs:"{kw}"' for kw in self.keywords)
             if len(self.keywords) > 1:
                 kw_query = f"({kw_query})"
             parts.append(kw_query)
+
+        if self.start_date and self.end_date:
+            start_str = self.start_date.strftime("%Y%m%d") + "0000"
+            end_str = self.end_date.strftime("%Y%m%d") + "2359"
+            parts.append(f"submittedDate:[{start_str} TO {end_str}]")
 
         return " AND ".join(parts) if parts else "*"
 
