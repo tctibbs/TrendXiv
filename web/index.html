@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrendXiv — Research trends across all of arXiv</title>
+<meta name="description" content="Publication trends across every arXiv category and 3.1 million papers since 1991. Normalised by corpus share, deseasonalised, with uncertainty shown.">
+<meta property="og:title" content="TrendXiv">
+<meta property="og:description" content="Research trends across all of arXiv, normalised and deseasonalised.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<script>
+  // Applied before first paint: a theme flash on load is the cheapest possible
+  // way to look unfinished.
+  try {
+    var t = localStorage.getItem('trendxiv-theme');
+    if (t) document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* private mode: fall through to the system preference */ }
+</script>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="wordmark" href="./">Trend<span>Xiv</span></a>
+    <span class="stamp" id="build-stamp">LOADING</span>
+    <button id="theme-toggle" class="icon-button" type="button"
+            aria-label="Switch colour theme" title="Switch colour theme">◐</button>
+  </div>
+</header>
+
+<main>
+<div class="wrap">
+
+  <div class="hero">
+    <h1>Thirty-five years of science, one curve at a time.</h1>
+    <p class="dek">
+      arXiv has published <strong>3.1 million</strong> papers since 1991, and the rate is still
+      climbing. Every trend below is shown as a <em>share of that growing corpus</em> — because
+      on raw counts, almost everything looks like it is going up.
+    </p>
+
+    <div class="chart-block">
+      <div class="chart-title">Monthly submissions to arXiv, all categories</div>
+      <p class="chart-sub" id="hero-sub">Papers per month, 3-month centred average. Hatched months are incomplete.</p>
+      <div class="chart-host skeleton" id="hero-chart" style="min-height:320px"></div>
+    </div>
+
+    <div class="stats">
+      <div>
+        <div class="stat-label">Papers indexed</div>
+        <div class="stat-value" id="stat-papers">—</div>
+      </div>
+      <div>
+        <div class="stat-label">Papers / month</div>
+        <div class="stat-value" id="stat-rate">—</div>
+        <div class="stat-note">trailing twelve months</div>
+      </div>
+      <div>
+        <div class="stat-label">Year over year</div>
+        <div class="stat-value" id="stat-yoy">—</div>
+        <div class="stat-note">submissions, not share</div>
+      </div>
+      <div>
+        <div class="stat-label">Categories</div>
+        <div class="stat-value" id="stat-cats">—</div>
+      </div>
+    </div>
+  </div>
+
+  <section id="explorer">
+    <div class="section-head">
+      <h2>Compare anything</h2>
+      <p>Search a category (<code>cs.LG</code>) or any indexed term (<code>diffusion</code>).
+         Series are normalised against the whole corpus, so they are comparable to each other
+         and checkable against arXiv itself.</p>
+    </div>
+
+    <div class="search" style="margin-bottom:var(--sp-4)">
+      <input id="search-input" type="search" autocomplete="off" spellcheck="false"
+             placeholder="Search a category or keyword…"
+             aria-label="Search categories and keywords">
+      <div class="results" id="search-results" role="listbox"></div>
+    </div>
+
+    <div class="controls">
+      <div class="segmented" id="mode-control" role="group" aria-label="Value mode">
+        <button data-mode="share" aria-pressed="true">Share</button>
+        <button data-mode="count" aria-pressed="false">Papers</button>
+        <button data-mode="index" aria-pressed="false">Indexed</button>
+        <button data-mode="yoy" aria-pressed="false">YoY</button>
+      </div>
+      <div class="segmented" id="smooth-control" role="group" aria-label="Smoothing">
+        <button data-smooth="0" aria-pressed="false">Raw</button>
+        <button data-smooth="3" aria-pressed="true">3 mo</button>
+        <button data-smooth="6" aria-pressed="false">6 mo</button>
+        <button data-smooth="12" aria-pressed="false">12 mo</button>
+      </div>
+    </div>
+
+    <div class="chips" id="explorer-chips" style="margin-bottom:var(--sp-4)"></div>
+
+    <div class="chart-block">
+      <div class="chart-title" id="explorer-title">Selected series</div>
+      <p class="chart-sub" id="explorer-sub">—</p>
+      <div class="chart-host skeleton" id="explorer-chart" style="min-height:300px"></div>
+    </div>
+
+    <div style="margin-top:var(--sp-4)">
+      <div class="stat-label" style="margin-bottom:var(--sp-2)">Start here</div>
+      <div class="chips" id="quick-picks"></div>
+    </div>
+
+    <table class="sr-only" id="explorer-table"></table>
+  </section>
+
+  <section id="rising">
+    <div class="section-head">
+      <h2>Rising now</h2>
+      <p>Terms whose share of the corpus grew fastest, ranked by the lower bound of the
+         estimate rather than the point estimate, with false-discovery control across every
+         term screened. A term going from one paper to five is not a breakout.</p>
+    </div>
+    <div id="rising-board"></div>
+  </section>
+
+  <section id="bursts">
+    <div class="section-head">
+      <h2>When each idea broke out</h2>
+      <p>Kleinberg's burst detection over the whole corpus. Each bar is a period when a
+         term's share ran persistently above its own baseline — a dated interval, not a
+         shape you have to squint at. Thickness is burst intensity; the label on the right is
+         the field the term mostly belongs to. Terms whose field mix simply mirrors the corpus
+         are excluded, which is what keeps academic filler off this list. Click a row to chart it.</p>
+    </div>
+    <div class="chart-host" id="burst-timeline"></div>
+  </section>
+
+  <section id="seasonality">
+    <div class="section-head">
+      <h2>The deadline fingerprint</h2>
+      <p>Conference deadlines leave a signature in a field's submission pattern. Each shape is
+         the month-of-year index for one category: the dashed circle is a month of average
+         volume, and the lobes are the months that field actually posts.</p>
+    </div>
+    <div class="multiples" id="fingerprints"></div>
+  </section>
+
+  <section id="landscape">
+    <div class="section-head">
+      <h2>How arXiv's composition shifted</h2>
+      <p>Share of all submissions by top-level group. Computed with fractional attribution, so
+         a paper listing three categories contributes one third to each and the shares sum to
+         one.</p>
+    </div>
+    <div class="chart-block">
+      <div class="chart-host skeleton" id="landscape-chart" style="min-height:340px"></div>
+    </div>
+  </section>
+
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="stat-label">Method &amp; limits</div>
+    <p>
+      Built from the arXiv metadata snapshot. Papers are bucketed by the <strong>v1 submission
+      date</strong>, never the last-modified date. Category counts use <em>any-listing</em>
+      attribution by default, matching arXiv's own <code>cat:</code> queries. Shares divide by
+      the total papers in the same snapshot, never by a different source and never by the sum of
+      whatever series you have selected.
+    </p>
+    <p>
+      Three things this data cannot tell you, stated plainly. Category membership is the
+      <em>current</em> list, so a 2010 paper cross-listed into cs.LG in 2024 counts in 2010 —
+      today's taxonomy is back-projected onto history. Titles and abstracts are the latest
+      revision's, so a 2016 paper revised in 2025 can register a 2025 term in 2016. And arXiv is
+      not science: preprinting is near-universal in high-energy physics and weak in chemistry
+      and clinical medicine, so a cross-field comparison partly measures preprinting culture.
+    </p>
+    <p>
+      Source: <a href="https://arxiv.org">arXiv.org</a> metadata, CC0. Thank you to arXiv for
+      its open-access interoperability. TrendXiv is not affiliated with or endorsed by arXiv or
+      Cornell University.
+    </p>
+  </div>
+</footer>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
