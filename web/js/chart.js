@@ -82,7 +82,8 @@ export function lineChart(host, spec) {
   // every trend as the viewport changes.
   const height = fixedHeight ?? Math.min(0.52 * window.innerHeight, Math.max(260, 0.40 * width));
   const isNarrow = width < 620;
-  const m = { top: 16, right: isNarrow ? 12 : 116, bottom: 26, left: 4 };
+  // Top margin clears the inside-the-plot y-axis label on the highest gridline.
+  const m = { top: 22, right: isNarrow ? 12 : 116, bottom: 26, left: 4 };
 
   const svg = el('svg', {
     viewBox: `0 0 ${width} ${height}`, role: 'img',
