@@ -16,9 +16,11 @@ Two aggregates are produced:
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 import time
+import urllib.request
 from pathlib import Path
 
 import duckdb
@@ -28,10 +30,19 @@ from src.common.taxonomy import CATEGORY_ALIASES
 logger = logging.getLogger(__name__)
 
 REPO = "librarian-bots/arxiv-metadata-snapshot"
-REVISION = "47141d6fd17f52b65424d246665334914cac3011"
 N_SHARDS = 10
+
+#: The dataset's Parquet conversion lives on its own branch. Its head moves when
+#: the upstream snapshot is refreshed, which is what makes weekly rebuilds pick
+#: up new papers.
+CONVERT_REF = "refs%2Fconvert%2Fparquet"
+REVISION_URL = "https://huggingface.co/api/datasets/{repo}/revision/{ref}"
+
+#: Every shard is fetched at one resolved commit rather than at the branch head.
+#: A ten-shard ingest takes minutes, and an upstream refresh landing midway
+#: through would otherwise splice two snapshots into one cube.
 SHARD_URL = (
-    "https://huggingface.co/api/datasets/{repo}/parquet/default/train/{i}.parquet"
+    "https://huggingface.co/datasets/{repo}/resolve/{revision}/default/train/{i:04d}.parquet"
 )
 
 #: v1 timestamp format used throughout the snapshot, e.g.
@@ -96,13 +107,33 @@ def _is_valid_parquet(path: Path) -> bool:
     return True
 
 
-def download_shard(index: int, dest: Path, retries: int = 6) -> Path:
+def upstream_revision(timeout: int = 30) -> str:
+    """Resolve the current commit of the dataset's Parquet conversion branch.
+
+    Returns:
+        The full commit SHA.
+
+    Raises:
+        RuntimeError: If the revision cannot be resolved.
+    """
+    url = REVISION_URL.format(repo=REPO, ref=CONVERT_REF)
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            sha = json.loads(response.read()).get("sha")
+    except (OSError, ValueError) as error:
+        raise RuntimeError(f"could not resolve upstream revision: {error}") from error
+    if not sha:
+        raise RuntimeError("upstream revision response contained no sha")
+    return str(sha)
+
+
+def download_shard(index: int, dest: Path, revision: str, retries: int = 6) -> Path:
     """Download one Parquet shard, backing off on HTTP 429.
 
     Hugging Face rate-limits anonymous bulk reads aggressively; a plain
     ``read_parquet`` across all shards fails partway through a build.
     """
-    url = SHARD_URL.format(repo=REPO, i=index)
+    url = SHARD_URL.format(repo=REPO, revision=revision, i=index)
     dest.parent.mkdir(parents=True, exist_ok=True)
     for attempt in range(retries):
         result = subprocess.run(
@@ -150,6 +181,10 @@ def init_db(con: duckdb.DuckDBPyConnection) -> None:
         CREATE TABLE IF NOT EXISTS shard_log (
             shard INTEGER PRIMARY KEY,
             rows  BIGINT
+        );
+        CREATE TABLE IF NOT EXISTS build_meta (
+            key   VARCHAR PRIMARY KEY,
+            value VARCHAR
         );
     """)
 
@@ -241,12 +276,45 @@ def ingest_shard(con: duckdb.DuckDBPyConnection, path: Path, shard: int) -> int:
     return rows
 
 
-def ingest_all(db_path: Path, cache_dir: Path, keep_shards: bool = False) -> int:
-    """Run the full ingest, resuming from whatever shards are already logged."""
+def ingest_all(db_path: Path, cache_dir: Path, keep_shards: bool = False,
+               revision: str | None = None) -> int:
+    """Ingest the snapshot, resuming or resetting as the upstream revision dictates.
+
+    Args:
+        db_path: Working-set database.
+        cache_dir: Directory for downloaded shards.
+        keep_shards: Retain downloaded shards instead of deleting each after use.
+        revision: Explicit upstream commit to ingest; resolved from Hugging Face
+            when omitted.
+
+    Returns:
+        Number of rows ingested in this run.
+    """
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(db_path))
     con.execute("SET enable_progress_bar=false; SET preserve_insertion_order=false;")
     init_db(con)
+
+    revision = revision or upstream_revision()
+    stored = con.execute(
+        "SELECT value FROM build_meta WHERE key = 'source_revision'"
+    ).fetchone()
+
+    # Shards are skipped once logged, so a restored working set would otherwise
+    # make every scheduled rebuild a no-op that republishes the same cube for
+    # ever. Comparing revisions is what turns the cache into a resilience
+    # measure rather than a correctness bug.
+    if stored and stored[0] != revision:
+        logger.info("upstream moved %s -> %s; rebuilding working set",
+                    stored[0][:10], revision[:10])
+        for table in ("cat_month", "term_month", "term_group", "corpus_month", "shard_log"):
+            con.execute(f"DELETE FROM {table}")
+    elif stored:
+        logger.info("upstream unchanged at %s", revision[:10])
+
+    con.execute(
+        "INSERT OR REPLACE INTO build_meta VALUES ('source_revision', ?)", [revision]
+    )
     done = {r[0] for r in con.execute("SELECT shard FROM shard_log").fetchall()}
 
     total = 0
@@ -262,7 +330,7 @@ def ingest_all(db_path: Path, cache_dir: Path, keep_shards: bool = False) -> int
             if shard_path.exists():
                 logger.warning("shard %d on disk is incomplete; re-downloading", i)
                 shard_path.unlink()
-            download_shard(i, shard_path)
+            download_shard(i, shard_path, revision)
         started = time.time()
         rows = ingest_shard(con, shard_path, i)
         total += rows

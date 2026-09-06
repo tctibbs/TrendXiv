@@ -33,7 +33,6 @@ from src.pipeline.analyze import (
     seasonal_artifact,
     specific_terms,
 )
-from src.pipeline.ingest import REVISION
 from src.pipeline.periods import completeness
 from src.pipeline.terms import build_term_index
 from src.pipeline.validate import validate
@@ -89,6 +88,12 @@ def build(db_path: Path, out_dir: Path, skip_terms: bool = False, strict: bool =
     ).fetchone()[0]
     complete_through, provisional_from = completeness(max_submission.date())
     corpus_rows = con.execute("SELECT sum(rows) FROM shard_log").fetchone()[0]
+    # Provenance is read back from the working set, not from a constant in the
+    # source: the manifest must record the revision the data actually came from.
+    revision_row = con.execute(
+        "SELECT value FROM build_meta WHERE key = 'source_revision'"
+    ).fetchone()
+    revision = revision_row[0] if revision_row else "unknown"
 
     logger.info("axis %s..%s (%d months), provisional from %s",
                 periods[0], periods[-1], len(periods), provisional_from)
@@ -164,7 +169,7 @@ def build(db_path: Path, out_dir: Path, skip_terms: bool = False, strict: bool =
     manifest = {
         "schema": SCHEMA_VERSION,
         "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "source_revision": REVISION,
+        "source_revision": revision,
         "corpus_rows": corpus_rows,
         "categories": len(series),
         "data_complete_through": complete_through,
