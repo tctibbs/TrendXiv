@@ -1,5 +1,7 @@
 # TrendXiv artifact contract (v1)
 
+[Back to the README](../README.md) &middot; [Getting started](getting-started.md) &middot; [Development](development.md)
+
 All artifacts are emitted to `build/` by `python -m src.pipeline.build` and deployed
 to GitHub Pages via `actions/upload-pages-artifact`. **Nothing here is committed to git.**
 
@@ -62,7 +64,7 @@ GitHub Pages serves them with `Cache-Control: max-age=600` and permits no
 override. For up to ten minutes after a deploy a reader can therefore hold new
 data alongside old code.
 
-This is bounded and degrades safely: unknown manifest keys read as absent, and
+It is bounded and degrades safely: unknown manifest keys read as absent, and
 `loadShard` returns an empty shard rather than throwing, so search finds nothing
 rather than showing wrong numbers. Fixing it properly needs the version to
 propagate to imported modules too, which without a bundler means dynamic
@@ -74,5 +76,6 @@ contract change so old code can detect it.
    integrity check only. (Cross-source shares drift up to 2.6%/month.)
 2. Bucket on versions[1].created (v1). Never update_date.
 3. Provisional buckets are excluded from every inference path (burst/rising/STL/forecast).
-4. Missing != zero. Absent series entry means unindexed; 0 means genuinely zero papers.
+4. Missing is not zero. An absent series entry means unindexed. A 0 means the
+   month really had no papers.
 5. Smoothing is presentation-only, applied after all inference.
