@@ -19,9 +19,10 @@ on:
       - '.github/workflows/build-and-deploy.yml'
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: pages
@@ -96,34 +97,6 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web
-
-      # Two jobs in one commit: it is the freshness stamp, and it is what resets
-      # the 60-day inactivity timer that otherwise silently disables this cron.
-      # A PAT is used deliberately -- a GITHUB_TOKEN commit may not count as
-      # repository activity for that timer.
-      - name: Touch build stamp
-        if: github.event_name == 'schedule'
-        env:
-          GH_PAT: ${{ secrets.KEEPALIVE_PAT }}
-        run: |
-          python - <<'PY'
-          import json, pathlib, datetime
-          p = pathlib.Path("data/reference/last_build.json")
-          m = json.loads(pathlib.Path("web/data/manifest.json").read_text())
-          p.write_text(json.dumps({
-              "built_at": m["built_at"],
-              "corpus_rows": m["corpus_rows"],
-              "data_complete_through": m["data_complete_through"],
-          }, indent=2) + "\n")
-          PY
-          git config user.name  'trendxiv-bot'
-          git config user.email 'trendxiv-bot@users.noreply.github.com'
-          git add data/reference/last_build.json
-          git diff --staged --quiet || git commit -m "chore: record build $(date -u +%Y-%m-%d)"
-          if [ -n "$GH_PAT" ]; then
-            git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git"
-          fi
-          git push || echo "push skipped"
 
       - name: Open an issue if the build failed
         if: failure()
