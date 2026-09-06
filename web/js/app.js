@@ -19,6 +19,9 @@ const state = {
   seasonal: 'raw',
 };
 
+/** Series a reader can compare at once, and the palette's assignable slots. */
+const MAX_SERIES = 8;
+
 /** A month with fewer papers than this cannot support a stable share. */
 const MIN_DENOMINATOR = 400;
 
@@ -28,7 +31,6 @@ const MIN_TOTAL_MATCHES = 25;
 const MODE_LABEL = {
   share: 'Share of everything arXiv published that month',
   count: 'Papers per month',
-  index: 'Growth since the first month with data, starting at 100',
   yoy: 'Change in share against the same month a year earlier',
 };
 
@@ -55,24 +57,48 @@ const termItem = (term) => ({
 
 /* ---------------------------------------------------------------- URL state */
 
+/** Smoothing windows the interface offers, in months. */
+const SMOOTH_WINDOWS = [0, 3, 6, 12];
+
+/**
+ * Restore state from the URL, ignoring anything it does not recognise.
+ *
+ * Every value here is attacker-or-typo controlled and, more mundanely, links
+ * outlive the interface: a shared link written against a mode that has since
+ * been removed must degrade to the default rather than render a chart whose
+ * subtitle says "undefined" while it silently plots something else.
+ */
 function readUrl() {
   const params = new URLSearchParams(location.search);
   const q = params.get('q');
   if (q) {
-    state.selection = q.split(',').filter(Boolean).map((raw) => {
-      const key = decodeURIComponent(raw);
-      return store.cube[key] ? categoryItem(key) : termItem(key);
-    });
+    // URLSearchParams already decodes. Decoding a second time double-decodes,
+    // and throws URIError outright on a lone percent sign, which would take the
+    // whole page down on a search for something like "100% growth".
+    state.selection = q.split(',').filter(Boolean).slice(0, MAX_SERIES)
+      .map((key) => (store.cube[key] ? categoryItem(key) : termItem(key)));
   }
-  state.mode = params.get('mode') ?? state.mode;
-  const sm = params.get('smooth');
-  if (sm !== null) state.smoothWindow = Number(sm);
+
+  const mode = params.get('mode');
+  if (mode && Object.hasOwn(MODE_LABEL, mode)) state.mode = mode;
+
+  // Number(null) is 0, and 0 is a legitimate window, so an ABSENT parameter would
+  // silently switch the default from 3 months to raw. Check presence first.
+  const smooth = params.get('smooth');
+  if (smooth && SMOOTH_WINDOWS.includes(Number(smooth))) {
+    state.smoothWindow = Number(smooth);
+  } else if (smooth === '0') {
+    state.smoothWindow = 0;
+  }
 }
 
 function writeUrl() {
   const params = new URLSearchParams();
+  // params.toString() does the encoding; encoding here as well produces %253C
+  // where %3C was meant, and the link degrades a little more each time it is
+  // opened and reshared.
   if (state.selection.length) {
-    params.set('q', state.selection.map((s) => encodeURIComponent(s.key)).join(','));
+    params.set('q', state.selection.map((s) => s.key).join(','));
   }
   if (state.mode !== 'share') params.set('mode', state.mode);
   if (state.smoothWindow !== 3) params.set('smooth', String(state.smoothWindow));
@@ -105,11 +131,7 @@ async function buildSeries(selection) {
   for (const [i, item] of selection.entries()) {
     const counts = await rawCounts(item);
     if (!counts) { out.push(null); continue; }
-    const values = smooth(transform(counts, state.mode, state), state.smoothWindow);
-    const entry = {
-      key: item.key, label: item.short ?? item.label, fullLabel: item.label,
-      code: item.code, values, color: seriesColor(i), counts, kind: item.kind,
-    };
+
     // Two masks, both about not asserting more than the data supports.
     // 1. The incomplete trailing months are never drawn.
     // 2. A share computed from a handful of papers is noise, not signal: in
@@ -120,6 +142,14 @@ async function buildSeries(selection) {
       if (state.mode === 'count') return true;
       const denom = store.totals.papers[j];
       return Boolean(denom) && denom >= MIN_DENOMINATOR;
+    };
+
+    const values = smooth(
+      transform(counts, state.mode, state), state.smoothWindow,
+    );
+    const entry = {
+      key: item.key, label: item.short ?? item.label, fullLabel: item.label,
+      code: item.code, values, color: seriesColor(i), counts, kind: item.kind,
     };
     entry.values = entry.values.map((v, j) => (drawable(j) ? v : null));
 
@@ -142,7 +172,7 @@ async function buildSeries(selection) {
 /* --------------------------------------------------------------------- hints */
 
 /** How long a pointer must rest on a control before its hint appears. */
-const HINT_DELAY_MS = 3000;
+const HINT_DELAY_MS = 600;
 
 const hint = document.createElement('div');
 hint.className = 'hint';

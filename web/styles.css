@@ -296,6 +296,12 @@ section:first-of-type { border-top: 0; }
 
 /* --- Rising board ------------------------------------------------------- */
 
+/* Wide content scrolls inside its own box. The page body must never scroll
+   horizontally: on a phone the five-column rising board is wider than the
+   viewport, and letting it push the document sideways makes every section feel
+   broken, not just this one. */
+#rising-board { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
 .board { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
 .board th {
   text-align: left; font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
@@ -328,7 +334,10 @@ footer a { color: var(--accent); }
    column on narrow screens without a media query. */
 .footer-cols {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  /* min() lets the track shrink below its ideal on a narrow screen. A bare
+     minmax(420px, 1fr) is a 420px floor, which overflows any viewport narrower
+     than that. */
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: var(--sp-4) var(--sp-7);
   margin-top: var(--sp-3);
 }
@@ -352,13 +361,22 @@ footer a { color: var(--accent); }
 @keyframes sweep { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 .hidden { display: none !important; }
+/* Visually hidden but still read aloud. Apply this to a wrapper, never directly
+   to a table: a table ignores a width below its min-content width, and the data
+   table gave the page 570px of horizontal scroll on a 390px phone. */
 .sr-only {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap; border: 0;
 }
 
 @media (max-width: 720px) {
   .wrap, .masthead-inner { padding-inline: var(--sp-4); }
+  /* Drop the two comparison columns rather than making the reader scroll for
+     them. The term, its shape and its current share are the story. */
+  .board th:nth-child(4), .board td:nth-child(4),
+  .board th:nth-child(5), .board td:nth-child(5) { display: none; }
   .stamp { font-size: 10px; white-space: nowrap; }
   .stats { gap: var(--sp-5); }
   .stat-value { font-size: var(--t-xl); }

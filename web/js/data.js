@@ -93,11 +93,6 @@ export function transform(counts, mode, { attribution = 'any' } = {}) {
       return counts.slice();
     case 'share':
       return counts.map((k, i) => (denom[i] > 0 ? k / denom[i] : null));
-    case 'index': {
-      const share = counts.map((k, i) => (denom[i] > 0 ? k / denom[i] : null));
-      const first = share.find((v) => v !== null && v > 0);
-      return first ? share.map((v) => (v === null ? null : (v / first) * 100)) : share;
-    }
     case 'yoy':
       return counts.map((k, i) => {
         if (i < 12) return null;

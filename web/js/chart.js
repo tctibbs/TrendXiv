@@ -48,7 +48,9 @@ function yearTicks(periods, width) {
 export function formatValue(v, mode) {
   if (v === null || v === undefined || Number.isNaN(v)) return 'no data';
   if (mode === 'share') return `${(v * 100).toFixed(v * 100 < 1 ? 2 : 1)}%`;
-  if (mode === 'per1k') return `${(v * 1000).toFixed(1)}`;
+  if (mode === 'yoy') return `${v > 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
+  // Growth is a multiple of where a series started, so it reads as "x40", not
+  // as an index of 4,000 that the reader has to divide in their head.
   return v >= 1000 ? Math.round(v).toLocaleString() : String(Math.round(v));
 }
 

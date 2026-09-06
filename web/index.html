@@ -37,7 +37,7 @@
 <div class="wrap">
 
   <div class="hero">
-    <h1>Thirty-five years of science, one curve at a time.</h1>
+    <h1>Thirty-five years of science.</h1>
     <p class="dek">
       arXiv has published <strong>3.1 million</strong> papers since 1991, and it is still
       speeding up. So every trend here is measured as a
@@ -91,8 +91,6 @@
                 data-hint="Papers per 100 published that month">Share</button>
         <button data-mode="count" aria-pressed="false"
                 data-hint="Plain monthly counts, unadjusted">Papers</button>
-        <button data-mode="index" aria-pressed="false"
-                data-hint="Every line starts at 100">Indexed</button>
         <button data-mode="yoy" aria-pressed="false"
                 data-hint="Change against the same month last year">YoY</button>
       </div>
@@ -121,7 +119,9 @@
       <div class="chips" id="quick-picks"></div>
     </div>
 
-    <table class="sr-only" id="explorer-table"></table>
+    <!-- A table ignores a width below its min-content width, so the visually
+         hidden clip has to be applied to a wrapper rather than to the table. -->
+    <div class="sr-only"><table id="explorer-table"></table></div>
   </section>
 
   <section id="rising">
