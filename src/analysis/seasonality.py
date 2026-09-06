@@ -91,7 +91,7 @@ def stl_decompose(
         )
 
     # STL turns a single NaN into an all-NaN decomposition, and the strength of
-    # an all-NaN decomposition computes to 0.0 — a confident "not seasonal"
+    # an all-NaN decomposition computes to 0.0, i.e. a confident "not seasonal"
     # verdict on a series nobody actually decomposed. Refuse instead.
     if not np.all(np.isfinite(series)):
         raise ValueError("values must all be finite: found NaN or infinity")

@@ -1,7 +1,7 @@
 # TrendXiv
 
-Research trends across all of arXiv — 3.1 million papers since 1991, normalised
-against the corpus, deseasonalised, with uncertainty shown.
+Research trends across all of arXiv, built from 3.1 million papers since 1991 and
+measured as a share of the corpus, with seasonality removed and uncertainty shown.
 
 **Free to host. No server, no database, no API keys.** A weekly GitHub Actions job
 compiles the entire arXiv corpus into a handful of static JSON files; GitHub Pages

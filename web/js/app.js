@@ -26,11 +26,32 @@ const MIN_DENOMINATOR = 400;
 const MIN_TOTAL_MATCHES = 25;
 
 const MODE_LABEL = {
-  share: 'Share of all arXiv submissions',
+  share: 'Share of everything arXiv published that month',
   count: 'Papers per month',
-  index: 'Indexed to first month with data = 100',
-  yoy: 'Year-over-year change in share',
+  index: 'Growth since the first month with data, starting at 100',
+  yoy: 'Change in share against the same month a year earlier',
 };
+
+/** Full name for a category code, falling back to the code itself. */
+const nameOf = (code) => store.taxonomy?.names?.[code] ?? code;
+
+/** Compact name for on-chart labels, where horizontal space is tight. */
+const shortNameOf = (code) => store.taxonomy?.short_names?.[code] ?? nameOf(code);
+
+/**
+ * Build a selectable item for a category.
+ *
+ * The name leads and the code follows, never one without the other: cs.LG and
+ * stat.ML are both officially called "Machine Learning", so a name alone is
+ * genuinely ambiguous, while a code alone is unreadable to everyone else.
+ */
+const categoryItem = (code) => ({
+  kind: 'category', key: code, label: nameOf(code), short: shortNameOf(code), code,
+});
+
+const termItem = (term) => ({
+  kind: 'term', key: term.toLowerCase(), label: term.toLowerCase(), short: term.toLowerCase(),
+});
 
 /* ---------------------------------------------------------------- URL state */
 
@@ -40,9 +61,7 @@ function readUrl() {
   if (q) {
     state.selection = q.split(',').filter(Boolean).map((raw) => {
       const key = decodeURIComponent(raw);
-      return store.cube[key]
-        ? { kind: 'category', key, label: key }
-        : { kind: 'term', key: key.toLowerCase(), label: key.toLowerCase() };
+      return store.cube[key] ? categoryItem(key) : termItem(key);
     });
   }
   state.mode = params.get('mode') ?? state.mode;
@@ -88,8 +107,8 @@ async function buildSeries(selection) {
     if (!counts) { out.push(null); continue; }
     const values = smooth(transform(counts, state.mode, state), state.smoothWindow);
     const entry = {
-      key: item.key, label: item.label, values, color: seriesColor(i),
-      counts, kind: item.kind,
+      key: item.key, label: item.short ?? item.label, fullLabel: item.label,
+      code: item.code, values, color: seriesColor(i), counts, kind: item.kind,
     };
     if (state.mode === 'share' && !state.smoothWindow) {
       const denom = store.totals.papers;
@@ -134,12 +153,12 @@ function showTooltip(host, index, event, series) {
   tooltip.innerHTML = `<div class="tt-date">${formatPeriod(periods[index])}</div>${rows
     .map((r) => `<div class="tt-row">
         <span class="swatch" style="background:${r.s.color}"></span>
-        <span class="name">${escape(r.s.label)}</span>
+        <span class="name">${escape(r.s.fullLabel ?? r.s.label)}</span>
         <span class="val">${formatValue(r.v, state.mode)}</span>
       </div>${
         state.mode === 'share' && r.raw !== undefined
           ? `<div class="tt-row"><span class="swatch" style="opacity:0"></span>
-               <span class="raw">${r.raw.toLocaleString()} of ${denom?.toLocaleString() ?? '—'} papers</span></div>`
+               <span class="raw">${r.raw.toLocaleString()} of ${denom?.toLocaleString() ?? '?'} papers</span></div>`
           : ''
       }`)
     .join('')}`;
@@ -163,7 +182,7 @@ let currentSeries = [];
 async function renderExplorer() {
   const host = $('#explorer-chart');
   if (!state.selection.length) {
-    host.innerHTML = `<p class="notice">Add a category or search a term to compare series.</p>`;
+    host.innerHTML = '<p class="notice">Search for a field or a word above to start comparing.</p>';
     $('#explorer-chips').innerHTML = '';
     return;
   }
@@ -184,8 +203,9 @@ async function renderExplorer() {
   });
   host.appendChild(tooltip);
 
-  $('#explorer-sub').textContent =
-    `${MODE_LABEL[state.mode]}${state.smoothWindow ? `, ${state.smoothWindow}-month centred average` : ', unsmoothed with 95% Wilson intervals'}`;
+  $('#explorer-sub').textContent = state.smoothWindow
+    ? `${MODE_LABEL[state.mode]}, averaged over ${state.smoothWindow} months`
+    : `${MODE_LABEL[state.mode]}, month by month, with a 95% confidence band`;
   renderChips();
   renderDataTable();
   writeUrl();
@@ -198,7 +218,10 @@ function renderChips() {
     const chip = document.createElement('span');
     chip.className = 'chip';
     chip.innerHTML = `<span class="swatch" style="background:${seriesColor(i)}"></span>
-      <span>${escape(item.label)}</span>`;
+      <span>${escape(item.short ?? item.label)}</span>${
+        item.code ? `<span class="chip-code">${escape(item.code)}</span>` : ''
+      }`;
+    if (item.code) chip.title = `${item.label} (${item.code})`;
     const close = document.createElement('button');
     close.type = 'button';
     close.setAttribute('aria-label', `Remove ${item.label}`);
@@ -262,10 +285,13 @@ async function runSearch(query) {
   const q = query.trim().toLowerCase();
   if (q.length < 2) { box.innerHTML = ''; return; }
 
+  // Match on the name as well as the code, so "machine learning" finds cs.LG
+  // for a reader who has never seen an arXiv code.
   const categories = Object.keys(store.cube)
-    .filter((c) => c.toLowerCase().includes(q))
-    .slice(0, 4)
-    .map((c) => ({ kind: 'category', key: c, label: c, df: sum(store.cube[c].any) }));
+    .filter((c) => c.toLowerCase().includes(q) || nameOf(c).toLowerCase().includes(q))
+    .sort((a, b) => sum(store.cube[b].any) - sum(store.cube[a].any))
+    .slice(0, 5)
+    .map((c) => ({ ...categoryItem(c), df: sum(store.cube[c].any) }));
 
   const vocab = await loadVocab();
   let terms = [];
@@ -276,14 +302,18 @@ async function runSearch(query) {
       .sort((a, b) => vocab.terms[b] - vocab.terms[a])
       .slice(0, 7);
     terms = [...(exact ? [q] : []), ...prefix]
-      .map((t) => ({ kind: 'term', key: t, label: t, df: vocab.terms[t] }));
+      .map((t) => ({ ...termItem(t), df: vocab.terms[t] }));
   }
 
   const items = [...categories, ...terms].slice(0, 10);
   if (!items.length) {
     const belowThreshold = vocab && vocab.min_df;
     box.innerHTML = `<div class="result"><span class="term" style="color:var(--ink-muted)">
-      No indexed match${belowThreshold ? ` — terms appearing in fewer than ${vocab.min_df} papers are not indexed` : ''}.
+      Nothing indexed under that name.${
+        belowThreshold
+          ? ` Words used in fewer than ${vocab.min_df} papers are left out of the index.`
+          : ''
+      }
     </span></div>`;
     return;
   }
@@ -293,14 +323,15 @@ async function runSearch(query) {
     const row = document.createElement('button');
     row.type = 'button';
     row.className = 'result';
-    row.innerHTML = `<span class="term">${escape(item.label)}</span>
-      <span class="df">${item.df.toLocaleString()}</span>`;
+    row.innerHTML = `<span class="term">${escape(item.short ?? item.label)}</span>${
+      item.code ? `<span class="chip-code">${escape(item.code)}</span>` : ''
+    }<span class="df">${item.df.toLocaleString()} papers</span>`;
     const counts = item.kind === 'category'
       ? store.cube[item.key].any
       : expand((await loadShard(shardKey(item.key)))[item.key], store.manifest.periods.length);
     row.prepend(sparkline(smooth(counts, 6), { color: 'var(--accent)' }));
     row.onclick = () => {
-      addSelection({ kind: item.kind, key: item.key, label: item.label });
+      addSelection(item);
       $('#search-input').value = '';
       box.innerHTML = '';
     };
@@ -318,7 +349,8 @@ function renderHero() {
   const host = $('#hero-chart');
   host.style.position = 'relative';
   const series = [{
-    key: 'arxiv', label: 'All arXiv', values: smooth(totals, 3), counts: totals,
+    key: 'arxiv', label: 'All arXiv', fullLabel: 'All of arXiv',
+    values: smooth(totals, 3), counts: totals,
     color: 'var(--ink)', width: 1.8,
   }];
   const cutoff = provisionalIndex();
@@ -357,7 +389,7 @@ function renderLandscape() {
     .slice(0, 8);
 
   const series = top.map(([g, values], i) => ({
-    key: g, label: groups[g] ?? g, counts: values,
+    key: g, label: groups[g] ?? g, fullLabel: groups[g] ?? g, counts: values,
     values: smooth(values.map((v, j) => (store.totals.papers[j] ? v / store.totals.papers[j] : null)), 6)
       .map((v, j) => (j >= cutoff ? null : v)),
     color: seriesColor(i),
@@ -366,7 +398,7 @@ function renderLandscape() {
   host.style.position = 'relative';
   lineChart(host, {
     periods, series, provisionalFrom: cutoff, mode: 'share', height: 340,
-    ariaLabel: 'Share of arXiv submissions by top-level group',
+    ariaLabel: 'Share of arXiv submissions by broad area',
     onHover: (i, ev) => showTooltip(host, i, ev, series),
   });
   host.appendChild(tooltip);
@@ -388,8 +420,9 @@ async function renderFingerprints() {
     const peakMonth = Object.entries(index).sort((a, b) => b[1] - a[1])[0];
     const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const amp = Math.max(...Object.values(index)) / Math.min(...Object.values(index));
-    card.innerHTML = `<h4>${code}</h4>
-      <div class="sub">PEAK ${names[Number(peakMonth[0]) - 1].toUpperCase()} · ${amp.toFixed(2)}× SWING</div>
+    card.innerHTML = `<h4>${escape(shortNameOf(code))}</h4>
+      <div class="sub">${escape(code)} &middot; PEAKS IN
+        ${names[Number(peakMonth[0]) - 1].toUpperCase()} &middot; ${amp.toFixed(2)}x SWING</div>
       <div class="fp"></div>`;
     host.appendChild(card);
     fingerprint($('.fp', card), index, { color: seriesColor(i), size: 190 });
@@ -417,16 +450,19 @@ async function renderBursts() {
   const host = $('#burst-timeline');
   const file = store.manifest.files.bursts;
   if (!file) {
-    host.innerHTML = `<p class="notice">Burst detection runs over the term index, which is
-      not present in this build.</p>`;
+    host.innerHTML = `<p class="notice">This build does not include the word index that burst
+      detection runs over.</p>`;
     return;
   }
   const data = await fetch(`${store.base}/${file}`).then((r) => r.json()).catch(() => null);
-  if (!data?.rows?.length) { host.innerHTML = '<p class="notice">No bursts detected.</p>'; return; }
+  if (!data?.rows?.length) {
+    host.innerHTML = '<p class="notice">No bursts found in this build.</p>';
+    return;
+  }
   const rows = [...data.rows]
     .sort((a, b) => store.manifest.periods.indexOf(a.start) - store.manifest.periods.indexOf(b.start));
   burstTimeline(host, rows, store.manifest.periods, (term) => {
-    addSelection({ kind: 'term', key: term, label: term });
+    addSelection(termItem(term));
     $('#explorer').scrollIntoView({ behavior: 'smooth' });
   });
 }
@@ -435,15 +471,18 @@ async function renderRising() {
   const host = $('#rising-board');
   const file = store.manifest.files.rising;
   if (!file) {
-    host.innerHTML = `<p class="notice">The rising board is generated by the analysis pipeline
-      and is not present in this build.</p>`;
+    host.innerHTML = `<p class="notice">This build does not include the rising board, which is
+      produced by the analysis step of the pipeline.</p>`;
     return;
   }
   const data = await fetch(`${store.base}/${file}`).then((r) => r.json()).catch(() => null);
-  if (!data?.rows?.length) { host.innerHTML = '<p class="notice">No terms cleared the threshold.</p>'; return; }
+  if (!data?.rows?.length) {
+    host.innerHTML = '<p class="notice">No word grew by enough to clear the bar this time.</p>';
+    return;
+  }
   host.innerHTML = `
-    <p class="notice">We screened ${data.n_screened.toLocaleString()} terms;
-      ${data.rows.length} survive at FDR ${(data.q * 100).toFixed(0)}%.</p>
+    <p class="notice">We tested ${data.n_screened.toLocaleString()} words.
+      ${data.rows.length} of them grew by more than chance can explain.</p>
     <table class="board">
       <thead><tr><th>Term</th><th>Last ${data.recent_months + data.baseline_months} months</th>
         <th class="num">Share now</th><th class="num">Share before</th>
@@ -468,7 +507,7 @@ async function renderRising() {
       $('.spark', tr).appendChild(sparkline(recent, { color: 'var(--s2)', width: 90 }));
     }
     $('.term-cell', tr).onclick = () => {
-      addSelection({ kind: 'term', key: row.term, label: row.term });
+      addSelection(termItem(row.term));
       $('#explorer').scrollIntoView({ behavior: 'smooth' });
     };
     body.appendChild(tr);
@@ -541,11 +580,11 @@ function debounce(fn, ms) {
 function renderQuickPicks() {
   const host = $('#quick-picks');
   const picks = [
-    { label: 'Deep learning fields', q: ['cs.LG', 'cs.CV', 'cs.CL'] },
-    { label: 'Physics core', q: ['hep-th', 'astro-ph.GA', 'cond-mat.mtrl-sci'] },
-    { label: 'The LLM era', q: ['transformer', 'attention', 'llm'] },
-    { label: 'Generative methods', q: ['diffusion', 'gan', 'autoencoder'] },
-    { label: 'Quantum', q: ['quant-ph', 'qubit', 'entanglement'] },
+    { label: 'The machine learning fields', q: ['cs.LG', 'cs.CV', 'cs.CL'] },
+    { label: 'Core physics', q: ['hep-th', 'astro-ph.GA', 'cond-mat.mtrl-sci'] },
+    { label: 'The rise of language models', q: ['transformer', 'attention', 'llm'] },
+    { label: 'Ways of generating things', q: ['diffusion', 'gan', 'autoencoder'] },
+    { label: 'Quantum everything', q: ['quant-ph', 'qubit', 'entanglement'] },
   ];
   host.innerHTML = '';
   for (const pick of picks) {
@@ -554,9 +593,7 @@ function renderQuickPicks() {
     button.style.cursor = 'pointer';
     button.textContent = pick.label;
     button.onclick = () => {
-      state.selection = pick.q.map((key) => (store.cube[key]
-        ? { kind: 'category', key, label: key }
-        : { kind: 'term', key, label: key }));
+      state.selection = pick.q.map((key) => (store.cube[key] ? categoryItem(key) : termItem(key)));
       renderExplorer();
       $('#explorer').scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
@@ -580,9 +617,7 @@ async function main() {
     renderQuickPicks();
     wireControls();
     if (!state.selection.length) {
-      state.selection = ['cs.LG', 'cs.CV', 'cs.CL']
-        .filter((c) => store.cube[c])
-        .map((key) => ({ kind: 'category', key, label: key }));
+      state.selection = ['cs.LG', 'cs.CV', 'cs.CL'].filter((c) => store.cube[c]).map(categoryItem);
     }
     await renderExplorer();
     renderFingerprints();
@@ -590,8 +625,9 @@ async function main() {
     renderRising();
   } catch (error) {
     document.body.insertAdjacentHTML('afterbegin',
-      `<div class="wrap"><p class="notice">Could not load data: ${escape(error.message)}.
-       Run <code>python -m src.pipeline.build</code> and serve <code>web/</code>.</p></div>`);
+      `<div class="wrap"><p class="notice">The data did not load: ${escape(error.message)}.
+       Run <code>python -m src.pipeline.build</code>, then serve the <code>web/</code>
+       folder.</p></div>`);
     console.error(error);
   }
 }

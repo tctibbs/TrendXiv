@@ -146,13 +146,40 @@ export function provisionalIndex() {
   return store.manifest.periods.indexOf(store.manifest.provisional_from);
 }
 
-/** Events resolved onto period indices, filtered to the active scope. */
+const EVENT_KIND_LABEL = {
+  created: 'created', split_from: 'split off', renamed: 'renamed', aliased_to: 'merged',
+};
+
+/**
+ * Events resolved onto period indices, filtered to the active scope.
+ *
+ * Two sources are merged. Curated events give a chart its context, but taxonomy
+ * events are a correctness feature: a category's first months are a cliff, not a
+ * trend, because arXiv never reclassifies existing papers into a new category.
+ * Cosmology appears to leap from nothing to nine percent of arXiv in January
+ * 2009, and without the annotation that reads as a discovery rather than as a
+ * filing change. Taxonomy events are given top weight so they are never the ones
+ * dropped when labels collide.
+ */
 export function eventsForScope(keys, limit = 4) {
-  if (!store.events?.events) return [];
   const periods = store.manifest.periods;
   const active = new Set(keys);
-  return store.events.events
-    .filter((e) => !e.scope?.length || e.scope.some((s) => active.has(s)))
+
+  const curated = (store.events?.events ?? []).filter(
+    (e) => !e.scope?.length || e.scope.some((s) => active.has(s)),
+  );
+
+  const taxonomy = (store.taxonomy?.events ?? [])
+    .filter((e) => active.has(e.code))
+    .map((e) => ({
+      date: e.date,
+      short: `${e.code} ${EVENT_KIND_LABEL[e.kind] ?? e.kind}`,
+      label: `${e.code} ${EVENT_KIND_LABEL[e.kind] ?? e.kind}: ${e.note}`,
+      weight: 99,
+      taxonomy: true,
+    }));
+
+  return [...taxonomy, ...curated]
     .map((e) => ({ ...e, index: periods.indexOf(e.date) }))
     .filter((e) => e.index >= 0)
     .sort((a, b) => (b.weight ?? 3) - (a.weight ?? 3))

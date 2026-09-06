@@ -1,13 +1,13 @@
 # Curated timeline annotations for TrendXiv charts.
 #
 # Every `date` is the arXiv v1 posting month, taken from the <published> field of
-# the arXiv API (which reports v1, not the latest revision) — NOT the journal
+# the arXiv API (which reports v1, not the latest revision), NOT the journal
 # publication month, the conference month, or the press-release month. Where the
 # two differ the `description` says so, because a flag drawn a year away from the
 # posting month it claims to mark is worse than no flag at all.
 #
 # `on_arxiv: false` marks work that was never posted to arXiv. Those events still
-# belong on the timeline — AlexNet moved the whole field without an arXiv record —
+# belong on the timeline (AlexNet moved the whole field without an arXiv record),
 # but the flag must not imply an arXiv posting that does not exist.
 #
 # Schema (all fields required):

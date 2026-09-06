@@ -46,7 +46,7 @@ function yearTicks(periods, width) {
 }
 
 export function formatValue(v, mode) {
-  if (v === null || v === undefined || Number.isNaN(v)) return '—';
+  if (v === null || v === undefined || Number.isNaN(v)) return 'no data';
   if (mode === 'share') return `${(v * 100).toFixed(v * 100 < 1 ? 2 : 1)}%`;
   if (mode === 'per1k') return `${(v * 1000).toFixed(1)}`;
   return v >= 1000 ? Math.round(v).toLocaleString() : String(Math.round(v));
@@ -83,7 +83,7 @@ export function lineChart(host, spec) {
   const height = fixedHeight ?? Math.min(0.52 * window.innerHeight, Math.max(260, 0.40 * width));
   const isNarrow = width < 620;
   // Top margin clears the inside-the-plot y-axis label on the highest gridline.
-  const m = { top: 22, right: isNarrow ? 12 : 116, bottom: 26, left: 4 };
+  const m = { top: 22, right: isNarrow ? 12 : 172, bottom: 26, left: 4 };
 
   const svg = el('svg', {
     viewBox: `0 0 ${width} ${height}`, role: 'img',
@@ -152,16 +152,23 @@ export function lineChart(host, spec) {
     if (ev.index < 0 || ev.index >= periods.length) continue;
     const ex = x(ev.index);
     el('line', { x1: ex, x2: ex, y1: m.top, y2: m.top + ih, class: 'event-rule' }, svg);
-    // IBM Plex Mono at 10px with 0.06em tracking runs ~6.8px per character;
-    // the extra 12px is the minimum gap that still reads as two labels.
-    const room = ev.short.length * 6.8 + 12;
-    const clash = labelled.some((px) => Math.abs(px - ex) < room);
+    // Collision is decided by the width of the label ALREADY PLACED, not by this
+    // one: labels are drawn rightwards from their rule, so a short label such as
+    // "GAN" can still land inside the tail of a long one such as "ALEXNET".
+    // IBM Plex Mono at 10px with 0.06em tracking runs ~6.8px per character, and
+    // the extra 12px is the smallest gap that still reads as two labels.
+    const clash = labelled.some(
+      (prev) => ex > prev.x - 12 && ex < prev.x + prev.width + 12,
+    );
     const anchor = ex > m.left + iw - 60 ? 'end' : 'start';
     const t = el('text', {
       x: ex + (anchor === 'end' ? -4 : 4), y: m.top + 10,
       class: 'event-flag', 'text-anchor': anchor,
     }, svg);
-    if (!clash) { t.textContent = ev.short; labelled.push(ex); }
+    if (!clash) {
+      t.textContent = ev.short;
+      labelled.push({ x: ex, width: ev.short.length * 6.8 });
+    }
     el('title', {}, t).textContent = `${ev.label} (${periods[ev.index]})`;
   }
 
@@ -222,7 +229,7 @@ export function lineChart(host, spec) {
         x: m.left + iw + 8, y: py + 4, class: 'series-label',
         fill: s.color ?? seriesColor(si), opacity: s.dim ? 0.3 : 1,
       }, svg);
-      label.textContent = s.label.length > 15 ? `${s.label.slice(0, 14)}…` : s.label;
+      label.textContent = s.label.length > 24 ? `${s.label.slice(0, 23)}\u2026` : s.label;
     });
   }
 
@@ -393,7 +400,7 @@ export function burstTimeline(host, rows, periods, onPick) {
     const title = el('title', {}, group);
     title.textContent =
       `${row.term}: level ${row.level} burst, ${row.start} to ${row.end}` +
-      (row.field ? ` — ${Math.round(row.field_share * 100)}% ${row.field}` : '');
+      (row.field ? `, mostly ${row.field} (${Math.round(row.field_share * 100)}%)` : '');
     if (onPick) group.onclick = () => onPick(row.term);
   });
   return svg;

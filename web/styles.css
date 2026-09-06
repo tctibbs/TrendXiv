@@ -210,6 +210,12 @@ section:first-of-type { border-top: 0; }
   background: var(--bg-raised); cursor: default; transition: opacity .12s;
 }
 .chip .swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+/* The code rides alongside the name rather than replacing it: two categories
+   share the name "Machine Learning", so the code is what disambiguates. */
+.chip-code {
+  font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint);
+  letter-spacing: .02em;
+}
 .chip button {
   border: 0; background: none; cursor: pointer; color: var(--ink-faint);
   font-size: 15px; line-height: 1; padding: 0 1px;

@@ -21,6 +21,7 @@ from pathlib import Path
 
 import duckdb
 
+from src.common.categories import LEGACY_ARCHIVES, display_name, short_name
 from src.common.taxonomy import CATEGORY_EVENTS, GROUPS, group_of
 from src.pipeline import cube as cube_module
 from src.pipeline.analyze import (
@@ -111,6 +112,11 @@ def build(db_path: Path, out_dir: Path, skip_terms: bool = False, strict: bool =
     taxonomy = {
         "groups": GROUPS,
         "category_group": {code: group_of(code) for code in series},
+        # The code is always paired with a name, never replaced by one: cs.LG and
+        # stat.ML are both officially "Machine Learning".
+        "names": {code: display_name(code) for code in series},
+        "short_names": {code: short_name(code) for code in series},
+        "legacy": sorted(code for code in series if code in LEGACY_ARCHIVES),
         "events": [
             {"code": e.code, "date": e.date, "kind": e.kind, "note": e.note}
             for e in CATEGORY_EVENTS
