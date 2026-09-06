@@ -2,9 +2,6 @@ name: Build and deploy
 
 on:
   schedule:
-    # Saturday, off-peak minute. The upstream snapshot lands Friday evening UTC.
-    # Never use minute 0 of an hour: that is when every naive cron on GitHub
-    # fires at once and scheduled runs get delayed or dropped.
     - cron: '17 4 * * 6'
   workflow_dispatch:
     inputs:
