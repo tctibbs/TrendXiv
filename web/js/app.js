@@ -605,11 +605,12 @@ async function main() {
   try {
     const manifest = await boot('data');
     const stamp = $('#build-stamp');
-    stamp.textContent = `DATA THROUGH ${manifest.data_complete_through}`;
-    stamp.title = `Built ${manifest.built_at.slice(0, 10)} from snapshot ${manifest.source_revision.slice(0, 10)}`;
-    if (window.innerWidth > 720) {
-      stamp.textContent += ` · BUILT ${manifest.built_at.slice(0, 10)}`;
-    }
+    stamp.textContent = `LAST UPDATED ${manifest.built_at.slice(0, 10)}`;
+    // The gap between the build date and the newest complete month is real and
+    // worth being able to find, just not worth the masthead space.
+    stamp.title =
+      `Complete through ${manifest.data_complete_through}. `
+      + `Built from arXiv snapshot ${manifest.source_revision.slice(0, 10)}.`;
     $$('.skeleton').forEach((n) => n.classList.remove('skeleton'));
     readUrl();
     renderHero();

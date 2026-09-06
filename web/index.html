@@ -47,7 +47,7 @@
 
     <div class="chart-block">
       <div class="chart-title">Monthly submissions to arXiv, all categories</div>
-      <p class="chart-sub" id="hero-sub">Papers per month, averaged over 3 months. Hatched months are still filling up.</p>
+      <p class="chart-sub" id="hero-sub">Papers per month, averaged over 3 months.</p>
       <div class="chart-host skeleton" id="hero-chart" style="min-height:320px"></div>
     </div>
 
@@ -59,12 +59,10 @@
       <div>
         <div class="stat-label">Papers / month</div>
         <div class="stat-value" id="stat-rate"></div>
-        <div class="stat-note">trailing twelve months</div>
       </div>
       <div>
         <div class="stat-label">Year over year</div>
         <div class="stat-value" id="stat-yoy"></div>
-        <div class="stat-note">papers, not share</div>
       </div>
       <div>
         <div class="stat-label">Categories</div>
@@ -122,10 +120,8 @@
   <section id="rising">
     <div class="section-head">
       <h2>Rising now</h2>
-      <p>The words gaining ground fastest as a share of everything arXiv publishes. Each one
-         is ranked by how much growth we can be confident in rather than by its headline
-         number, and every candidate word is tested together so that a few winners cannot
-         turn up by chance alone. One paper becoming five is not a breakout.</p>
+      <p>The words gaining ground fastest, ranked by the growth we can be confident in
+         rather than by the headline number. One paper becoming five is not a breakout.</p>
     </div>
     <div id="rising-board"></div>
   </section>
@@ -133,11 +129,8 @@
   <section id="bursts">
     <div class="section-head">
       <h2>When each idea broke out</h2>
-      <p>Each bar marks a stretch when a word ran persistently above its own long-run rate,
-         found using Kleinberg's burst detection. You get a start date and an end date rather
-         than a shape to squint at. Thicker bars burned hotter, and the label on the right is
-         the field the word mostly belongs to. Words that show up evenly across every field
-         are left out, which is what keeps ordinary academic phrasing off the list.
+      <p>Each bar marks a stretch when a word ran persistently above its own long-run rate.
+         Thicker bars burned hotter, and the label on the right is the field it belongs to.
          Click any row to chart it.</p>
     </div>
     <div class="chart-host" id="burst-timeline"></div>
@@ -147,9 +140,8 @@
     <div class="section-head">
       <h2>The deadline fingerprint</h2>
       <p>Conference deadlines leave a mark on when a field posts. The dashed circle is an
-         average month, and each lobe shows how far above or below that a given month runs.
-         Fields built around big annual conferences come out lopsided. Fields without them
-         stay close to round.</p>
+         average month, and each lobe shows how far a given month runs above or below it.
+         Deadline-driven fields come out lopsided. Others stay round.</p>
     </div>
     <div class="multiples" id="fingerprints"></div>
   </section>
