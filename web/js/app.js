@@ -87,8 +87,6 @@ function readUrl() {
   const smooth = params.get('smooth');
   if (smooth && SMOOTH_WINDOWS.includes(Number(smooth))) {
     state.smoothWindow = Number(smooth);
-  } else if (smooth === '0') {
-    state.smoothWindow = 0;
   }
 }
 
@@ -395,10 +393,14 @@ function addSelection(item) {
 /* -------------------------------------------------------------------- search */
 
 let searchTimer;
+let searchToken = 0;
 
 async function runSearch(query) {
   const box = $('#search-results');
   const q = query.trim().toLowerCase();
+  // Each run claims a token. A slower earlier search must not append its rows
+  // underneath a later one's, which is what happens when both await a shard.
+  const token = ++searchToken;
   if (q.length < 2) { box.innerHTML = ''; return; }
 
   // Match on the name as well as the code, so "machine learning" finds cs.LG
@@ -410,6 +412,7 @@ async function runSearch(query) {
     .map((c) => ({ ...categoryItem(c), df: sum(store.cube[c].any) }));
 
   const vocab = await loadVocab();
+  if (token !== searchToken) return;
   let terms = [];
   if (vocab) {
     const exact = vocab.terms[q];
@@ -434,6 +437,7 @@ async function runSearch(query) {
     return;
   }
 
+  if (token !== searchToken) return;
   box.innerHTML = '';
   for (const item of items) {
     const row = document.createElement('button');
@@ -445,6 +449,7 @@ async function runSearch(query) {
     const counts = item.kind === 'category'
       ? store.cube[item.key].any
       : expand((await loadShard(shardKey(item.key)))[item.key], store.manifest.periods.length);
+    if (token !== searchToken) return;
     row.prepend(sparkline(smooth(counts, 6), { color: 'var(--accent)' }));
     row.onclick = () => {
       addSelection(item);
@@ -742,9 +747,9 @@ async function main() {
       state.selection = ['cs.LG', 'cs.CV', 'cs.CL'].filter((c) => store.cube[c]).map(categoryItem);
     }
     await renderExplorer();
-    renderFingerprints();
-    renderBursts();
-    renderRising();
+    // Settled, not awaited in sequence: one section failing should not take the
+    // others down, and an unawaited rejection never reaches the catch below.
+    await Promise.allSettled([renderFingerprints(), renderBursts(), renderRising()]);
   } catch (error) {
     document.body.insertAdjacentHTML('afterbegin',
       `<div class="wrap"><p class="notice">The data did not load: ${escape(error.message)}.

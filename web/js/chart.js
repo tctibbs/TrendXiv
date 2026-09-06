@@ -8,6 +8,8 @@
  */
 
 const NS = 'http://www.w3.org/2000/svg';
+let hatchSeq = 0;
+
 const SERIES_VARS = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6', '--s7', '--s8'];
 
 export const seriesColor = (i) => `var(${SERIES_VARS[i % SERIES_VARS.length]})`;
@@ -138,12 +140,15 @@ export function lineChart(host, spec) {
   // 2026-08 for this reason alone).
   if (provisionalFrom < periods.length) {
     const defs = el('defs', {}, svg);
-    const pat = el('pattern', { id: 'hatch', width: 5, height: 5,
+    // Ids are document-wide. Three charts draw a provisional region at once, so
+    // a fixed id makes all of them reference whichever pattern rendered first.
+    const hatchId = `hatch-${(hatchSeq += 1)}`;
+    const pat = el('pattern', { id: hatchId, width: 5, height: 5,
       patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, defs);
     el('line', { x1: 0, y1: 0, x2: 0, y2: 5, stroke: 'var(--rule-strong)', 'stroke-width': 1.2 }, pat);
     const px = x(provisionalFrom);
     el('rect', { x: px, y: m.top, width: Math.max(0, m.left + iw - px), height: ih,
-      fill: 'url(#hatch)', opacity: 0.35 }, svg);
+      fill: `url(#${hatchId})`, opacity: 0.35 }, svg);
     if (m.left + iw - px > 46) {
       el('text', { x: px + 4, y: 12, class: 'event-flag' }, svg).textContent = 'PARTIAL';
     }

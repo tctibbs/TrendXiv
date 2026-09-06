@@ -30,6 +30,7 @@ from src.pipeline.analyze import (
     lifecycle_artifact,
     load_group_profiles,
     load_term_vectors,
+    overdispersion_factor,
     rising_artifact,
     seasonal_artifact,
     specific_terms,
@@ -216,6 +217,7 @@ def build(db_path: Path, out_dir: Path, skip_terms: bool = False, strict: bool =
         "categories": len(series),
         "data_complete_through": complete_through,
         "provisional_from": provisional_from,
+        "overdispersion": round(overdispersion_factor(series, totals["papers"], cutoff), 3),
         "periods": periods,
         "files": files,
         "validation": [

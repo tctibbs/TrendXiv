@@ -21,7 +21,7 @@ from src.analysis.burst import kleinberg_bursts
 from src.analysis.concentration import dominant_groups, time_adjusted_specificity
 from src.analysis.lifecycle import fit_lifecycle, mann_kendall
 from src.analysis.rising import deduplicate_ngrams, rising_scores
-from src.analysis.seasonality import month_of_year_index
+from src.analysis.seasonality import month_of_year_index, trading_day_adjust
 from src.pipeline.terms import discovery_candidates
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,13 @@ MIN_BURST_PAPERS = 200
 #: corpus share, so neither frequency nor growth separates them -- but prose
 #: tracks the corpus's own field distribution and a topic does not.
 MIN_SPECIFICITY = 0.12
+
+#: Window for the local level that overdispersion is measured against.
+LOCAL_TREND_MONTHS = 13
+
+#: Ceiling on the shipped overdispersion factor. Beyond this the band stops
+#: informing and just swallows the chart.
+MAX_OVERDISPERSION = 12.0
 
 
 def group_month_matrix(cube: dict, taxonomy_group: dict, periods: list[str]) -> dict:
@@ -119,6 +126,60 @@ def specific_terms(
     return kept
 
 
+def overdispersion_factor(cube: dict, totals: list[int], cutoff: int) -> float:
+    """Estimate how much wider than binomial the real spread is.
+
+    Papers are not independent draws: topics cluster and one group posts five
+    papers at once, so a plain binomial band is too tight and everything looks
+    significant. Measured across the largest categories and shipped for the
+    browser to widen its intervals by sqrt(phi).
+
+    Args:
+        cube: Category cube.
+        totals: Corpus papers per month.
+        cutoff: Index of the first provisional bucket.
+
+    Returns:
+        Overdispersion factor, at least 1.0.
+    """
+    denom = np.asarray(totals[:cutoff], dtype=float)
+    ranked = sorted(cube, key=lambda c: sum(cube[c]["any"]), reverse=True)[:40]
+    factors = []
+    for code in ranked:
+        counts = np.asarray(cube[code]["any"][:cutoff], dtype=float)
+        usable = (denom >= 400) & (counts > 0)
+        if usable.sum() < 120:
+            continue
+
+        share = counts[usable] / denom[usable]
+        # Compare each month against its LOCAL level, not against the pooled
+        # rate. A category's share moves by orders of magnitude across 35 years,
+        # and measuring against one global number scores that trend as
+        # overdispersion: doing so returned phi=35, which would widen every band
+        # sixfold. What we want is the excess wobble around the current level.
+        expected = _centred_mean(share, LOCAL_TREND_MONTHS)
+        n_used = denom[usable]
+        variance = expected * (1.0 - expected) / n_used
+        keep = variance > 0
+        if keep.sum() < 60:
+            continue
+        residual = (share[keep] - expected[keep]) ** 2 / variance[keep]
+        factors.append(float(residual.sum() / keep.sum()))
+
+    phi = float(np.median(factors)) if factors else 1.0
+    logger.info("overdispersion: phi=%.2f across %d categories", phi, len(factors))
+    return float(np.clip(phi, 1.0, MAX_OVERDISPERSION))
+
+
+def _centred_mean(values: np.ndarray, window: int) -> np.ndarray:
+    """Centred moving average, used as the local expectation."""
+    half = window // 2
+    return np.array([
+        values[max(0, i - half):min(len(values), i + half + 1)].mean()
+        for i in range(len(values))
+    ])
+
+
 def seasonal_artifact(cube: dict, periods: list[str], cutoff: int) -> dict:
     """Compute month-of-year seasonal indices for every eligible category.
 
@@ -140,7 +201,10 @@ def seasonal_artifact(cube: dict, periods: list[str], cutoff: int) -> dict:
         if len(values) < MIN_SEASONAL_MONTHS or (values > 0).sum() < MIN_SEASONAL_MONTHS:
             continue
         try:
-            index = month_of_year_index(values, window)
+            # Months hold between 20 and 23 weekdays, about a 5% swing that is
+            # calendar arithmetic rather than behaviour. Left in, it lands
+            # directly on the fingerprint this artifact exists to draw.
+            index = month_of_year_index(trading_day_adjust(values, window), window)
         except (ValueError, np.linalg.LinAlgError) as error:
             logger.debug("seasonality skipped for %s: %s", code, error)
             continue

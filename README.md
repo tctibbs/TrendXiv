@@ -1,18 +1,22 @@
 # TrendXiv
 
-Research trends across all of arXiv, built from 3.1 million papers since 1991 and
-measured as a share of the corpus, with seasonality removed and uncertainty shown.
+**[See it live](https://tctibbs.github.io/TrendXiv/)**
 
-**Free to host. No server, no database, no API keys.** A weekly GitHub Actions job
-compiles the entire arXiv corpus into a handful of static JSON files; GitHub Pages
-serves them; the browser fetches ~90 KB and draws.
+Which research topics are actually growing on arXiv, and which ones only look like
+they are. Built from all 3,148,882 papers going back to 1991.
+
+There is no server, no database and no API key. A weekly GitHub Actions job turns
+the whole arXiv corpus into a handful of static JSON files, GitHub Pages serves
+them, and the browser downloads about 240 KB and draws the charts itself. The
+whole thing runs on free tiers.
 
 ## Why it isn't just a line chart
 
-arXiv grew about 102× between 1992 and today and is still running **+27% year over
-year**. Any tool that plots raw keyword counts is substantially plotting arXiv's own
-growth curve. TrendXiv shows **share of the corpus** by default, with the denominator
-named on the axis and the numerator in every tooltip.
+arXiv grew about 102 times over between 1992 and today and is still adding roughly
+27% more papers each year. Plot raw keyword counts and you are mostly plotting that
+growth, so almost everything slopes up, including topics that are quietly shrinking.
+TrendXiv shows **share of the corpus** by default, names the denominator on the axis,
+and puts the raw numerator in every tooltip.
 
 Beyond that:
 

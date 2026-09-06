@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# The data files are for the page to read, not for a crawler to index.
+Disallow: /data/
+
+Sitemap: https://tctibbs.github.io/TrendXiv/sitemap.xml

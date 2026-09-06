@@ -55,7 +55,12 @@ export async function loadShard(key) {
   if (store.shards.has(key)) return store.shards.get(key);
   const filename = store.manifest.files.terms_shards?.[key];
   if (!filename) return {};
-  const promise = json(`${store.base}/terms/${filename}`).catch(() => ({}));
+  // Drop the memo on failure. Caching the rejection means one dropped request
+  // leaves every term on that letter permanently unsearchable for the session.
+  const promise = json(`${store.base}/terms/${filename}`).catch(() => {
+    store.shards.delete(key);
+    return {};
+  });
   store.shards.set(key, promise);
   return promise;
 }
@@ -121,20 +126,36 @@ export function transform(counts, mode, { attribution = 'any' } = {}) {
 export function smooth(values, window) {
   if (!window || window < 2) return values;
   const half = Math.floor(window / 2);
+  // An even window has no exact centre, so the two endpoints count half each.
+  // Without that a "12 month" average silently spans 13 months: the old code
+  // produced results identical to a window of 13 and none at all for 12.
+  const even = window % 2 === 0;
   return values.map((_, i) => {
     let sum = 0;
-    let count = 0;
+    let weight = 0;
     for (let j = Math.max(0, i - half); j <= Math.min(values.length - 1, i + half); j++) {
       const v = values[j];
-      if (v !== null && v !== undefined && !Number.isNaN(v)) { sum += v; count++; }
+      if (v === null || v === undefined || Number.isNaN(v)) continue;
+      const w = even && Math.abs(j - i) === half ? 0.5 : 1;
+      sum += v * w;
+      weight += w;
     }
-    return count ? sum / count : null;
+    return weight ? sum / weight : null;
   });
 }
 
-/** Wilson score interval, mirrored from src/analysis/intervals.py. */
+/**
+ * Wilson score interval, mirrored from src/analysis/intervals.py.
+ *
+ * The z score is widened by sqrt(phi), an overdispersion factor measured across
+ * the largest categories at build time. Papers are not independent draws:
+ * topics cluster and one group posts several at once, so a plain binomial band
+ * claims more precision than the data supports.
+ */
 export function wilson(k, n, z = 1.96) {
   if (!n) return [null, null];
+  const phi = store.manifest?.overdispersion ?? 1;
+  z *= Math.sqrt(phi);
   const p = k / n;
   const z2 = z * z;
   const d = 1 + z2 / n;
@@ -145,7 +166,10 @@ export function wilson(k, n, z = 1.96) {
 
 /** Index of the first provisional bucket. */
 export function provisionalIndex() {
-  return store.manifest.periods.indexOf(store.manifest.provisional_from);
+  const at = store.manifest.periods.indexOf(store.manifest.provisional_from);
+  // A missing marker means nothing is provisional. Returning -1 would mask the
+  // entire series, since every caller treats this as a valid index.
+  return at < 0 ? store.manifest.periods.length : at;
 }
 
 const EVENT_KIND_LABEL = {

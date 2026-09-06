@@ -72,26 +72,6 @@ class LifecycleFit:
     r_squared: float
 
 
-@dataclass(frozen=True)
-class BassFit:
-    """Bass diffusion parameters for a cumulative share series.
-
-    Attributes:
-        p: Coefficient of innovation, the externally driven adoption rate
-        q: Coefficient of imitation, the word-of-mouth adoption rate
-        saturation: Fitted ceiling M of the cumulative share
-        peak_index: Time of peak adoption in units of t, None when innovation
-            dominates imitation and the peak date is meaningless
-        r_squared: Fraction of cumulative-share variance explained
-    """
-
-    p: float
-    q: float
-    saturation: float
-    peak_index: float | None
-    r_squared: float
-
-
 def fit_lifecycle(share: np.ndarray, t: np.ndarray | None = None) -> LifecycleFit:
     """Fit logistic and Gompertz adoption curves and classify the lifecycle.
 
@@ -143,55 +123,6 @@ def fit_lifecycle(share: np.ndarray, t: np.ndarray | None = None) -> LifecycleFi
         state=state,
         identifiable=identifiable,
         r_squared=r_squared,
-    )
-
-
-def bass_diffusion(share: np.ndarray, t: np.ndarray | None = None) -> BassFit | None:
-    """Fit the Bass diffusion model to a cumulative share series.
-
-    Args:
-        share: Per-period share of the reference set, k / n
-        t: Time coordinate aligned to share. Defaults to period indices.
-
-    Returns:
-        The fitted parameters, or None if the fit does not converge
-
-    Raises:
-        ValueError: If share is not 1-D or t is misaligned
-    """
-    share_array, time = _validate_series(share, t)
-    if len(share_array) < MIN_POINTS_FOR_FIT:
-        return None
-
-    cumulative = np.cumsum(share_array)
-    ceiling = float(cumulative[-1])
-    if ceiling <= 0:
-        return None
-
-    origin = float(time[0])
-    guess = [ceiling * 1.5, 0.01, 0.3]
-    bounds = ([ceiling * 1e-3, 1e-9, 1e-9], [ceiling * 1e4, 1.0, 10.0])
-
-    def model(time_values: np.ndarray, m: float, p: float, q: float) -> np.ndarray:
-        return _bass_cumulative(time_values, m, p, q, origin)
-
-    parameters, _ = _least_squares(model, time, cumulative, guess, bounds)
-    if parameters is None:
-        return None
-
-    m, p, q = (float(value) for value in parameters)
-
-    # ln(q/p) is negative when innovation dominates imitation, which dates the
-    # adoption peak before the series begins. That case is exactly what this
-    # diagnostic exists to detect, so report no date rather than a fake one.
-    peak_index = origin + math.log(q / p) / (p + q) if q > p else None
-
-    return BassFit(
-        p=p,
-        q=q,
-        saturation=m,
-        peak_index=peak_index,
-        r_squared=_r_squared(cumulative, model(time, m, p, q)),
     )
 
 
@@ -308,24 +239,6 @@ def _gompertz(t: np.ndarray, m: float, r: float, t0: float) -> np.ndarray:
     inner = np.clip(-r * (t - t0), -_EXP_LIMIT, _EXP_LIMIT)
     outer = np.clip(-np.exp(inner), -_EXP_LIMIT, _EXP_LIMIT)
     return m * np.exp(outer)
-
-
-def _bass_cumulative(t: np.ndarray, m: float, p: float, q: float, origin: float) -> np.ndarray:
-    """Evaluate cumulative Bass adoption.
-
-    Args:
-        t: Time coordinate
-        m: Saturation level
-        p: Coefficient of innovation
-        q: Coefficient of imitation
-        origin: Time at which diffusion starts
-
-    Returns:
-        Curve values at t
-    """
-    exponent = np.clip(-(p + q) * (t - origin), -_EXP_LIMIT, _EXP_LIMIT)
-    decay = np.exp(exponent)
-    return m * (1.0 - decay) / (1.0 + (q / p) * decay)
 
 
 def _fit_curve(

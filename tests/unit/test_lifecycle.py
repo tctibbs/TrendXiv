@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from scipy.stats import kendalltau, norm
 
-from src.analysis.lifecycle import BassFit, bass_diffusion, fit_lifecycle, mann_kendall
+from src.analysis.lifecycle import fit_lifecycle, mann_kendall
 
 SATURATION = 0.4
 GROWTH_RATE = 0.1
@@ -170,73 +170,7 @@ class TestFitLifecycle:
 
 
 @pytest.mark.unit
-class TestBassDiffusion:
-    """Tests for bass_diffusion."""
 
-    def test_recovers_known_parameters(self):
-        """The fit must return the p and q it was simulated from."""
-        p, q, m = 0.01, 0.3, 0.5
-        share = _bass_share(p, q, m)
-
-        fit = bass_diffusion(share)
-
-        assert fit is not None
-        assert fit.p == pytest.approx(p, rel=0.1)
-        assert fit.q == pytest.approx(q, rel=0.1)
-        assert fit.saturation == pytest.approx(m, rel=0.05)
-
-    def test_reports_peak_when_imitation_dominates(self):
-        """With q > p the peak date is the analytical ln(q/p)/(p+q).
-
-        The tolerance is tight on purpose: the noiseless curve is recovered to
-        machine precision, so a peak divided by q - p instead of p + q lands
-        7% away and must fail here.
-        """
-        p, q = 0.01, 0.3
-        expected_peak = math.log(q / p) / (p + q)
-
-        fit = bass_diffusion(_bass_share(p, q, 0.5))
-
-        assert fit is not None
-        assert fit.peak_index == pytest.approx(expected_peak, rel=1e-6)
-
-    def test_peak_is_the_argmax_of_the_fitted_adoption_rate(self):
-        """The reported peak must be where the fitted curve adopts fastest."""
-        p, q = 0.02, 0.25
-        fit = bass_diffusion(_bass_share(p, q, 0.5))
-        assert fit is not None
-
-        grid = np.linspace(0.0, 59.0, 600_001)
-        decay = np.exp(-(fit.p + fit.q) * grid)
-        cumulative = fit.saturation * (1.0 - decay) / (1.0 + (fit.q / fit.p) * decay)
-
-        assert fit.peak_index == pytest.approx(grid[np.argmax(np.diff(cumulative))], rel=1e-4)
-
-    def test_withholds_peak_when_innovation_dominates(self):
-        """p > q makes the peak formula negative, so no date is reported."""
-        fit = bass_diffusion(_bass_share(0.3, 0.02, 0.5))
-
-        assert fit is not None
-        assert fit.p > fit.q
-        assert fit.peak_index is None
-
-    def test_short_series_returns_none(self):
-        """Three points cannot support a three-parameter fit."""
-        assert bass_diffusion(np.array([0.01, 0.02, 0.03])) is None
-
-    def test_empty_adoption_returns_none(self):
-        """A series with no adoption has nothing to diffuse."""
-        assert bass_diffusion(np.zeros(60)) is None
-
-    def test_is_frozen_dataclass(self):
-        """Fits are immutable so pipeline stages cannot mutate them."""
-        fit = BassFit(p=0.01, q=0.3, saturation=0.5, peak_index=11.0, r_squared=0.99)
-
-        with pytest.raises(AttributeError):
-            fit.p = 0.2
-
-
-@pytest.mark.unit
 class TestMannKendall:
     """Tests for mann_kendall."""
 
@@ -326,9 +260,3 @@ class TestMannKendall:
         assert mann_kendall(values, alpha=1e-6).trend == "no trend"
 
 
-def _bass_share(p: float, q: float, m: float, n_periods: int = 60) -> np.ndarray:
-    """Create per-period increments of a known Bass adoption curve."""
-    t = np.arange(n_periods, dtype=float)
-    decay = np.exp(-(p + q) * t)
-    cumulative = m * (1.0 - decay) / (1.0 + (q / p) * decay)
-    return np.diff(cumulative, prepend=0.0)
