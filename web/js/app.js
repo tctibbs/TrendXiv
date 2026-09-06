@@ -110,28 +110,77 @@ async function buildSeries(selection) {
       key: item.key, label: item.short ?? item.label, fullLabel: item.label,
       code: item.code, values, color: seriesColor(i), counts, kind: item.kind,
     };
-    if (state.mode === 'share' && !state.smoothWindow) {
-      const denom = store.totals.papers;
-      const bands = counts.map((k, j) => wilson(k, denom[j]));
-      entry.lo = bands.map((b) => b[0]);
-      entry.hi = bands.map((b) => b[1]);
-    }
     // Two masks, both about not asserting more than the data supports.
     // 1. The incomplete trailing months are never drawn.
     // 2. A share computed from a handful of papers is noise, not signal: in
     //    1994 arXiv published a few hundred papers a month, so one cs.CL paper
     //    renders as a 19% spike that dwarfs the entire modern era.
-    entry.values = entry.values.map((v, j) => {
-      if (j >= cutoff) return null;
-      if (state.mode === 'count') return v;
+    const drawable = (j) => {
+      if (j >= cutoff) return false;
+      if (state.mode === 'count') return true;
       const denom = store.totals.papers[j];
-      if (!denom || denom < MIN_DENOMINATOR) return null;
-      return v;
-    });
+      return Boolean(denom) && denom >= MIN_DENOMINATOR;
+    };
+    entry.values = entry.values.map((v, j) => (drawable(j) ? v : null));
+
+    // The band has to obey the same mask as the line it belongs to. A Wilson
+    // interval over a 50-paper month reaches most of the way to 100%, and since
+    // the y-scale is fitted to the bands as well as the lines, one unmasked
+    // month flattens the entire modern era against the axis.
+    if (state.mode === 'share' && !state.smoothWindow) {
+      const denom = store.totals.papers;
+      const bands = counts.map((k, j) => (drawable(j) ? wilson(k, denom[j]) : [null, null]));
+      entry.lo = bands.map((b) => b[0]);
+      entry.hi = bands.map((b) => b[1]);
+    }
     entry.sparse = counts.slice(0, cutoff).reduce((a, b) => a + b, 0) < MIN_TOTAL_MATCHES;
     out.push(entry);
   }
   return out.filter(Boolean);
+}
+
+/* --------------------------------------------------------------------- hints */
+
+const hint = document.createElement('div');
+hint.className = 'hint';
+hint.setAttribute('role', 'tooltip');
+
+/**
+ * Show a short explanation for any element carrying data-hint.
+ *
+ * Bound once on the document so controls rendered later are covered without
+ * rewiring, and on focus as well as hover so the keyboard path works too.
+ */
+function wireHints() {
+  document.body.appendChild(hint);
+
+  const show = (target) => {
+    const text = target.getAttribute('data-hint');
+    if (!text) return;
+    hint.textContent = text;
+    hint.classList.add('on');
+    const box = target.getBoundingClientRect();
+    const width = hint.offsetWidth;
+    const height = hint.offsetHeight;
+    // Prefer above; flip below when there is no room at the top of the viewport.
+    const above = box.top > height + 12;
+    hint.style.top = `${above ? box.top - height - 8 : box.bottom + 8}px`;
+    hint.style.left = `${Math.max(8,
+      Math.min(window.innerWidth - width - 8, box.left + box.width / 2 - width / 2))}px`;
+  };
+  const hide = () => hint.classList.remove('on');
+
+  document.addEventListener('pointerover', (event) => {
+    const target = event.target.closest('[data-hint]');
+    if (target) show(target); else hide();
+  });
+  document.addEventListener('focusin', (event) => {
+    const target = event.target.closest('[data-hint]');
+    if (target) show(target);
+  });
+  document.addEventListener('focusout', hide);
+  document.addEventListener('pointerleave', hide);
+  window.addEventListener('scroll', hide, { passive: true });
 }
 
 /* ------------------------------------------------------------------ tooltip */
@@ -481,8 +530,6 @@ async function renderRising() {
     return;
   }
   host.innerHTML = `
-    <p class="notice">We tested ${data.n_screened.toLocaleString()} words.
-      ${data.rows.length} of them grew by more than chance can explain.</p>
     <table class="board">
       <thead><tr><th>Term</th><th>Last ${data.recent_months + data.baseline_months} months</th>
         <th class="num">Share now</th><th class="num">Share before</th>
@@ -515,6 +562,14 @@ async function renderRising() {
 }
 
 /* --------------------------------------------------------------------- wiring */
+
+/** Push current state onto the segmented controls. */
+function syncControls() {
+  $$('#mode-control button').forEach((b) =>
+    b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)));
+  $$('#smooth-control button').forEach((b) =>
+    b.setAttribute('aria-pressed', String(Number(b.dataset.smooth) === state.smoothWindow)));
+}
 
 function wireControls() {
   $$('#mode-control button').forEach((button) => {
@@ -613,10 +668,14 @@ async function main() {
       + `Built from arXiv snapshot ${manifest.source_revision.slice(0, 10)}.`;
     $$('.skeleton').forEach((n) => n.classList.remove('skeleton'));
     readUrl();
+    // A shared link carries mode and smoothing, so the controls have to follow
+    // the restored state rather than their markup defaults.
+    syncControls();
     renderHero();
     renderLandscape();
     renderQuickPicks();
     wireControls();
+    wireHints();
     if (!state.selection.length) {
       state.selection = ['cs.LG', 'cs.CV', 'cs.CL'].filter((c) => store.cube[c]).map(categoryItem);
     }

@@ -268,6 +268,21 @@ section:first-of-type { border-top: 0; }
 /* The numerator sits under every ratio: "2.31%" means nothing without "37 of 4,812". */
 .tt-row .raw { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); }
 
+/* --- Hints -------------------------------------------------------------- */
+
+/* Native title tooltips wait about a second and cannot be styled, which is too
+   slow for controls a reader is scanning to decide what to click. */
+.hint {
+  position: fixed; z-index: 60; max-width: 268px;
+  background: var(--ink); color: var(--bg);
+  padding: 7px 10px; border-radius: 6px;
+  font-size: var(--t-xs); line-height: 1.4;
+  pointer-events: none; opacity: 0; transform: translateY(2px);
+  transition: opacity .12s ease, transform .12s ease;
+  box-shadow: 0 8px 22px rgb(0 0 0 / .22);
+}
+.hint.on { opacity: 1; transform: translateY(0); }
+
 /* --- Small multiples ---------------------------------------------------- */
 
 .multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: var(--sp-5); }

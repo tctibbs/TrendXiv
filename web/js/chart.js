@@ -83,7 +83,9 @@ export function lineChart(host, spec) {
   const height = fixedHeight ?? Math.min(0.52 * window.innerHeight, Math.max(260, 0.40 * width));
   const isNarrow = width < 620;
   // Top margin clears the inside-the-plot y-axis label on the highest gridline.
-  const m = { top: 22, right: isNarrow ? 12 : 172, bottom: 26, left: 4 };
+  // The top margin is a dedicated band for event flags. Y-axis labels sit inside
+  // the plot area, so without it the highest label and the first flag overlap.
+  const m = { top: 34, right: isNarrow ? 12 : 172, bottom: 26, left: 4 };
 
   const svg = el('svg', {
     viewBox: `0 0 ${width} ${height}`, role: 'img',
@@ -141,7 +143,7 @@ export function lineChart(host, spec) {
     el('rect', { x: px, y: m.top, width: Math.max(0, m.left + iw - px), height: ih,
       fill: 'url(#hatch)', opacity: 0.35 }, svg);
     if (m.left + iw - px > 46) {
-      el('text', { x: px + 4, y: m.top + 11, class: 'event-flag' }, svg).textContent = 'PARTIAL';
+      el('text', { x: px + 4, y: 12, class: 'event-flag' }, svg).textContent = 'PARTIAL';
     }
   }
 
@@ -162,7 +164,7 @@ export function lineChart(host, spec) {
     );
     const anchor = ex > m.left + iw - 60 ? 'end' : 'start';
     const t = el('text', {
-      x: ex + (anchor === 'end' ? -4 : 4), y: m.top + 10,
+      x: ex + (anchor === 'end' ? -4 : 4), y: 12,
       class: 'event-flag', 'text-anchor': anchor,
     }, svg);
     if (!clash) {

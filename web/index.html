@@ -75,8 +75,7 @@
     <div class="section-head">
       <h2>Compare anything</h2>
       <p>Search for a field by name or by code, or for any word that appears in titles and
-         abstracts. Everything is measured against the whole corpus, so two lines on this
-         chart are directly comparable, and any number here can be checked against arXiv.</p>
+         abstracts.</p>
     </div>
 
     <div class="search" style="margin-bottom:var(--sp-4)">
@@ -88,16 +87,24 @@
 
     <div class="controls">
       <div class="segmented" id="mode-control" role="group" aria-label="Value mode">
-        <button data-mode="share" aria-pressed="true">Share</button>
-        <button data-mode="count" aria-pressed="false">Papers</button>
-        <button data-mode="index" aria-pressed="false">Indexed</button>
-        <button data-mode="yoy" aria-pressed="false">YoY</button>
+        <button data-mode="share" aria-pressed="true"
+                data-hint="Papers per 100 that arXiv published that month. Cancels out the fact that arXiv keeps growing.">Share</button>
+        <button data-mode="count" aria-pressed="false"
+                data-hint="Plain paper counts. Almost every line slopes up here, because arXiv itself grew about 100 times over.">Papers</button>
+        <button data-mode="index" aria-pressed="false"
+                data-hint="Every line starts at 100 in its first month, so you compare how fast things grew rather than how big they are.">Indexed</button>
+        <button data-mode="yoy" aria-pressed="false"
+                data-hint="Change against the same month a year earlier. Cancels out the yearly conference cycle.">YoY</button>
       </div>
       <div class="segmented" id="smooth-control" role="group" aria-label="Smoothing">
-        <button data-smooth="0" aria-pressed="false">Raw</button>
-        <button data-smooth="3" aria-pressed="true">3 mo</button>
-        <button data-smooth="6" aria-pressed="false">6 mo</button>
-        <button data-smooth="12" aria-pressed="false">12 mo</button>
+        <button data-smooth="0" aria-pressed="false"
+                data-hint="Every month exactly as measured, with a shaded band showing how much of the wobble is just small numbers.">Raw</button>
+        <button data-smooth="3" aria-pressed="true"
+                data-hint="Each point averaged with the month either side. Takes the edge off without moving anything.">3 mo</button>
+        <button data-smooth="6" aria-pressed="false"
+                data-hint="Averaged across 6 months. Smoother, and small dips stop being visible.">6 mo</button>
+        <button data-smooth="12" aria-pressed="false"
+                data-hint="Averaged across a full year, which erases the conference cycle entirely and leaves only the long trend.">12 mo</button>
       </div>
     </div>
 
@@ -120,8 +127,10 @@
   <section id="rising">
     <div class="section-head">
       <h2>Rising now</h2>
-      <p>The words gaining ground fastest, ranked by the growth we can be confident in
-         rather than by the headline number. One paper becoming five is not a breakout.</p>
+      <p>Each word's share of papers over the last 12 months, set against the three years
+         before it. Rare words are pulled toward the average first, so one paper becoming five
+         cannot outrank a real trend. Words are then ranked by the bottom of their likely
+         range rather than the middle of it.</p>
     </div>
     <div id="rising-board"></div>
   </section>
@@ -129,9 +138,11 @@
   <section id="bursts">
     <div class="section-head">
       <h2>When each idea broke out</h2>
-      <p>Each bar marks a stretch when a word ran persistently above its own long-run rate.
-         Thicker bars burned hotter, and the label on the right is the field it belongs to.
-         Click any row to chart it.</p>
+      <p>In any given month a word is either running at its usual rate or sitting in one of
+         three raised states. The algorithm traces the cheapest path through those states
+         across all 35 years, paying a penalty each time it steps up, so a bar appears only
+         where a rise held long enough to be worth the jump. Thicker bars sat higher. The
+         label on the right is the field the word belongs to, and clicking a row charts it.</p>
     </div>
     <div class="chart-host" id="burst-timeline"></div>
   </section>
@@ -141,7 +152,8 @@
       <h2>The deadline fingerprint</h2>
       <p>Conference deadlines leave a mark on when a field posts. The dashed circle is an
          average month, and each lobe shows how far a given month runs above or below it.
-         Deadline-driven fields come out lopsided. Others stay round.</p>
+         The more a field revolves around one annual deadline, the more lopsided its
+         shape.</p>
     </div>
     <div class="multiples" id="fingerprints"></div>
   </section>
@@ -150,7 +162,7 @@
     <div class="section-head">
       <h2>How arXiv's composition shifted</h2>
       <p>Share of all submissions by broad area. A paper listing three categories counts a
-         third in each, so the areas add up to the whole and none of them is double counted.</p>
+         third in each, so the areas sum to 100%.</p>
     </div>
     <div class="chart-block">
       <div class="chart-host skeleton" id="landscape-chart" style="min-height:340px"></div>
@@ -164,21 +176,18 @@
   <div class="wrap">
     <div class="stat-label">How this is built</div>
     <p>
-      A paper is counted in the month it was <strong>first posted</strong>, never the month it
-      was last edited, so revising an old paper cannot move it into the present. A paper counts
-      in every field it is listed under, which is what arXiv's own
-      <code>cat:</code> search does, so the numbers here should match what you find there.
-      Shares always divide by the total papers in the same snapshot. They never divide by
-      another source, and never by whichever lines you happen to have selected.
+      A paper is counted in the month it was <strong>first posted</strong>, so revising an old
+      paper cannot move it into the present. A paper counts in every field it is listed under,
+      which is what arXiv's own <code>cat:</code> search does, so the numbers here should match
+      what you find there. Shares always divide by the total papers in the same snapshot.
     </p>
     <p>
-      Three things this data honestly cannot tell you. Fields are recorded as they stand today,
-      so a 2010 paper added to machine learning in 2024 still counts as machine learning back in
-      2010, and today's fashions get painted onto the past. Titles and abstracts are the latest
-      version, so a 2016 paper revised in 2025 can appear to use a 2025 word in 2016. And arXiv
-      is not all of science. Posting preprints is close to universal in high energy physics and
-      rare in chemistry and clinical medicine, so comparing across fields partly measures
-      posting habits rather than research.
+      Some limits worth knowing. Fields are recorded as they stand today, so a 2010 paper added
+      to machine learning in 2024 still counts as machine learning back in 2010. Titles and
+      abstracts are the latest version, so a 2016 paper revised in 2025 can appear to use a 2025
+      word in 2016. And arXiv is not all of science. High energy physics posts nearly
+      everything, chemistry and clinical medicine post very little, so comparing across fields
+      partly measures posting habits.
     </p>
     <p>
       Built from <a href="https://arxiv.org">arXiv.org</a> metadata, released under CC0, with
