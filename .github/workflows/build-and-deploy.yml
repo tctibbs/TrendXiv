@@ -7,6 +7,11 @@ on:
     # fires at once and scheduled runs get delayed or dropped.
     - cron: '17 4 * * 6'
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Publish the result to GitHub Pages'
+        type: boolean
+        default: true
   push:
     branches: [main]
     paths:
@@ -35,6 +40,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Runner capacity
+        run: |
+          echo "cpus: $(nproc)"
+          free -g | head -2
+          df -h / | tail -1
 
       - name: Install
         run: |
@@ -137,6 +148,9 @@ jobs:
 
   deploy:
     needs: build
+    # A manual run can build without publishing, which is how the pipeline gets
+    # exercised on a free runner before anyone commits to putting it online.
+    if: github.event_name != 'workflow_dispatch' || inputs.deploy
     runs-on: ubuntu-latest
     environment:
       name: github-pages
