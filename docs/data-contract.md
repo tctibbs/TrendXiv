@@ -1,81 +1,111 @@
-# TrendXiv artifact contract (v1)
+# Data contract
 
 [Back to the README](../README.md) &middot; [Getting started](getting-started.md) &middot; [Development](development.md)
 
-All artifacts are emitted to `build/` by `python -m src.pipeline.build` and deployed
-to GitHub Pages via `actions/upload-pages-artifact`. **Nothing here is committed to git.**
+`python -m src.pipeline.build` writes everything the site needs into one folder,
+and that folder is deployed as a Pages artifact. None of it is committed.
 
-Filenames are content-hashed: `<name>-<sha256[:10]>.<ext>`. `manifest.json` is the only
-stable name and is the single source of truth the frontend reads first.
+Filenames carry a content hash, so a file that changes gets a new name. That is
+what stops a reader holding a fresh manifest alongside a cached copy of last
+week's data. `manifest.json` is the only stable name, and the site reads it
+first to find everything else.
 
 ## manifest.json
+
+```json
 {
   "schema": 1,
-  "built_at": "2026-09-05T00:00:00Z",
-  "source_revision": "<hf revision sha>",
+  "built_at": "2026-09-06T13:24:00+00:00",
+  "source_revision": "80dbeac57a...",
   "corpus_rows": 3148882,
-  "data_complete_through": "2026-07-31",   // last FULLY complete month
-  "snapshot_max_date": "2026-08-27",
-  "provisional_from": "2026-08-01",        // buckets >= this are hatched + excluded from inference
-  "periods": ["1991-07", ..., "2026-08"],  // shared month axis, index = position in every series array
-  "files": {
-    "cube":     "cube-<hash>.json",
-    "totals":   "totals-<hash>.json",
-    "events":   "events-<hash>.json",
-    "taxonomy": "taxonomy-<hash>.json",
-    "rising":   "rising-<hash>.json",
-    "bursts":   "bursts-<hash>.json",
-    "seasonal": "seasonal-<hash>.json",
-    "vocab":    "vocab-<hash>.json",
-    "terms_shard_pattern": "terms/t-{shard}-<hash>.json"
-  }
+  "categories": 152,
+  "data_complete_through": "2026-07",
+  "provisional_from": "2026-08",
+  "overdispersion": 2.275,
+  "periods": ["1991-07", "...", "2026-08"],
+  "files": { "cube": "cube-<hash>.json", "terms_shards": { "a": "t-a-<hash>.json" } },
+  "validation": [{ "check": "row_count", "ok": true, "detail": "..." }]
 }
+```
 
-## cube-<hash>.json   (category x month)
-{
-  "periods_len": 423,
-  "series": {
-    "cs.LG": {"any": [<int> x periods_len], "primary": [...], "frac": [<float> x N]},
-    ...
-  }
-}
-`any`      = paper lists this category anywhere (matches arXiv `cat:` semantics)  <- DEFAULT
-`primary`  = paper's primary category only
-`frac`     = 1/k fractional attribution (used only for the 100%-stacked landscape)
+`periods` is the shared month axis. Every series elsewhere is an array lined up
+against it, so nothing else has to carry dates.
 
-## totals-<hash>.json  (the denominator - derived from the SAME snapshot, never the official CSV)
-{"any": [...], "primary": [...]}   // primary == corpus paper count per month
+Months from `provisional_from` onward are still filling up. They are drawn
+hatched and left out of every calculation.
 
-## terms/t-<shard>-<hash>.json    (shard = first char a-z, "0" for digit, "_" other)
-{"transformer": {"o": 180, "v": [1,0,3,...]}, ...}
-  o = offset into manifest.periods where this term's vector starts
-  v = document-frequency counts (papers mentioning term >=1x), NOT term occurrences
+`overdispersion` widens the uncertainty bands. Papers are not independent draws,
+so a plain binomial interval claims more precision than the data supports.
 
-## vocab-<hash>.json
-{"terms": {"transformer": {"df": 91234, "s": "t"}}, "below_threshold": ["...", ...]}
-  s = shard key.  below_threshold lets the UI say "indexed only above 10 papers"
-  rather than silently rendering zeros.
+## cube
 
-## Known limitation: entry-asset staleness
+```json
+{ "series": { "cs.LG": { "any": [...], "primary": [...], "frac": [...] } } }
+```
 
-Data artifacts are content-hashed, so a reader can never mix a fresh manifest
-with stale data. `index.html`, `styles.css` and `js/*.js` are not hashed, and
-GitHub Pages serves them with `Cache-Control: max-age=600` and permits no
-override. For up to ten minutes after a deploy a reader can therefore hold new
-data alongside old code.
+Three ways of counting the same paper:
 
-It is bounded and degrades safely: unknown manifest keys read as absent, and
-`loadShard` returns an empty shard rather than throwing, so search finds nothing
-rather than showing wrong numbers. Fixing it properly needs the version to
-propagate to imported modules too, which without a bundler means dynamic
-imports keyed off `import.meta.url`. Bump `manifest.schema` on any breaking
-contract change so old code can detect it.
+- `any` counts it in every category it lists. This matches arXiv's own `cat:`
+  search, so the number is checkable. It is the default.
+- `primary` counts only the first category listed.
+- `frac` splits one paper across its categories, so the shares sum to one. Used
+  for the stacked view.
 
-## Rules that must not be violated
-1. Denominator is ALWAYS from this snapshot. The official arXiv CSV is a build-time
-   integrity check only. (Cross-source shares drift up to 2.6%/month.)
-2. Bucket on versions[1].created (v1). Never update_date.
-3. Provisional buckets are excluded from every inference path (burst/rising/STL/forecast).
-4. Missing is not zero. An absent series entry means unindexed. A 0 means the
-   month really had no papers.
-5. Smoothing is presentation-only, applied after all inference.
+## totals
+
+```json
+{ "papers": [...], "listings": [...] }
+```
+
+`papers` is the denominator for every share. It comes from the same snapshot as
+the numerator, never from arXiv's published CSV. Mixing the two puts sources
+that disagree by up to 2.6% in a month into one ratio, and that disagreement
+drifts, so it reads as signal.
+
+## terms
+
+Sharded by first character, listed in `manifest.files.terms_shards`.
+
+```json
+{ "transformer": { "o": 180, "v": [1, 0, 3] } }
+```
+
+`o` is where the vector starts on the period axis, since leading and trailing
+zeros are dropped. `v` counts papers that mention the term at least once, not
+mentions. Abstracts have grown longer over 35 years, so counting mentions would
+bake that drift into every series.
+
+`vocab` holds `terms` as a plain term to count map, plus `min_df` and
+`below_threshold_count`, which let the site say a word is below the indexing
+threshold rather than silently drawing zeros.
+
+## Everything else
+
+`taxonomy` carries category names, groups and dated events like the astro-ph
+split. `seasonal` holds a month-of-year index per category. `bursts` and
+`rising` hold the detected intervals and the fastest growing words, with
+sparkline points included so the board does not need the term index. `events`
+is the hand-curated timeline.
+
+## Rules worth keeping
+
+1. The denominator always comes from this snapshot. arXiv's published CSV is a
+   build-time check, nothing more.
+2. Bucket on the first version's timestamp. Never `update_date`.
+3. Provisional months stay out of bursts, rising terms, seasonality and
+   forecasts.
+4. Missing is not zero. An absent entry means unindexed. A `0` means the month
+   really had no papers.
+5. Smoothing is presentation only, applied after everything else.
+
+## One known gap
+
+The data files are hashed, but `index.html`, `styles.css` and `js/*.js` are not,
+and Pages serves them with a ten minute cache it will not let us override. So
+for ten minutes after a deploy someone can hold new data with old code.
+
+It degrades safely: unknown manifest keys read as absent and a missing shard
+comes back empty, so search finds nothing rather than showing wrong numbers.
+Fixing it properly means propagating a version to imported modules, which
+without a bundler needs dynamic imports keyed off `import.meta.url`. Until then,
+bump `schema` on any breaking change so old code can tell.
