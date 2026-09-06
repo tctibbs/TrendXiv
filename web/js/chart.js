@@ -210,29 +210,41 @@ export function lineChart(host, spec) {
   // Direct labels at the right terminus. The legend-swatch-to-line eye jump is
   // the largest readability tax on a multi-series chart.
   if (!isNarrow) {
-    const placed = [];
+    const LINE = 15;
+    const wanted = [];
     series.forEach((s, si) => {
       let last = -1;
       for (let i = s.values.length - 1; i >= 0; i--) {
         const v = s.values[i];
         if (v !== null && v !== undefined && !Number.isNaN(v)) { last = i; break; }
       }
-      if (last < 0) return;
-      let py = y(s.values[last]);
-      // Iterative nudge with a 15px floor keeps labels legible when lines converge.
-      for (let guard = 0; guard < 60; guard++) {
-        const clash = placed.find((p) => Math.abs(p - py) < 15);
-        if (clash === undefined) break;
-        py = clash + (py >= clash ? 15 : -15);
-      }
-      py = Math.max(m.top + 9, Math.min(m.top + ih, py));
-      placed.push(py);
+      if (last >= 0) wanted.push({ s, si, ideal: y(s.values[last]) });
+    });
+
+    // Place the whole stack at once rather than nudging each label off whichever
+    // one it happened to hit first. Greedy pairwise nudging piles labels on top
+    // of each other wherever several series converge, which is exactly where a
+    // chart most needs them legible: sort by position, push each down to clear
+    // the one above, then lift the stack if it has run past the bottom.
+    wanted.sort((a, b) => a.ideal - b.ideal);
+    let cursor = -Infinity;
+    for (const item of wanted) {
+      item.y = Math.max(item.ideal, cursor + LINE);
+      cursor = item.y;
+    }
+    const overflow = cursor - (m.top + ih);
+    if (overflow > 0) {
+      const lift = Math.min(overflow, wanted[0].y - (m.top + 9));
+      for (const item of wanted) item.y -= lift;
+    }
+
+    for (const { s, si, y: py } of wanted) {
       const label = el('text', {
         x: m.left + iw + 8, y: py + 4, class: 'series-label',
         fill: s.color ?? seriesColor(si), opacity: s.dim ? 0.3 : 1,
       }, svg);
       label.textContent = s.label.length > 24 ? `${s.label.slice(0, 23)}\u2026` : s.label;
-    });
+    }
   }
 
   const focusLine = el('line', {

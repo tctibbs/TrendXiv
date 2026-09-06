@@ -175,7 +175,12 @@ section:first-of-type { border-top: 0; }
 .chart-host { position: relative; width: 100%; }
 .chart-host svg { display: block; width: 100%; height: auto; overflow: visible; }
 
-.axis-label { font-size: 11px; fill: var(--ink-faint); font-family: var(--font-ui); }
+/* Y labels sit inside the plot area to save a 60px left margin, so they need a
+   halo to stay readable where a series passes through them. */
+.axis-label {
+  font-size: 11px; fill: var(--ink-faint); font-family: var(--font-ui);
+  paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round;
+}
 .grid-line   { stroke: var(--rule); stroke-width: 1; }
 .zero-line   { stroke: var(--rule-strong); stroke-width: 1; }
 .series-label {
@@ -273,7 +278,7 @@ section:first-of-type { border-top: 0; }
 /* Native title tooltips wait about a second and cannot be styled, which is too
    slow for controls a reader is scanning to decide what to click. */
 .hint {
-  position: fixed; z-index: 60; max-width: 268px;
+  position: fixed; z-index: 60; max-width: 220px;
   background: var(--ink); color: var(--bg);
   padding: 7px 10px; border-radius: 6px;
   font-size: var(--t-xs); line-height: 1.4;
@@ -313,8 +318,27 @@ section:first-of-type { border-top: 0; }
 /* --- Footer / methodology ---------------------------------------------- */
 
 footer { border-top: 1px solid var(--rule); padding: var(--sp-7) 0 var(--sp-8); margin-top: var(--sp-7); }
-footer p { font-size: var(--t-sm); color: var(--ink-muted); max-width: 70ch; }
+footer p { font-size: var(--t-sm); color: var(--ink-muted); margin: 0; }
 footer a { color: var(--accent); }
+
+/* Two columns rather than one narrow one. A single 70ch column under a
+   full-width chart reads as a layout mistake, but running the text to the full
+   1140px would put ~140 characters on a line, which is unreadable. Splitting it
+   keeps a comfortable measure and uses the space. auto-fit collapses to one
+   column on narrow screens without a media query. */
+.footer-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: var(--sp-4) var(--sp-7);
+  margin-top: var(--sp-3);
+}
+.colophon {
+  margin-top: var(--sp-5) !important;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-faint) !important;
+  max-width: 78ch;
+}
 
 .notice {
   border-left: 2px solid var(--rule-strong); padding: 2px 0 2px var(--sp-4);

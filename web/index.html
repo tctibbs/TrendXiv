@@ -88,23 +88,23 @@
     <div class="controls">
       <div class="segmented" id="mode-control" role="group" aria-label="Value mode">
         <button data-mode="share" aria-pressed="true"
-                data-hint="Papers per 100 that arXiv published that month. Cancels out the fact that arXiv keeps growing.">Share</button>
+                data-hint="Papers per 100 published that month">Share</button>
         <button data-mode="count" aria-pressed="false"
-                data-hint="Plain paper counts. Almost every line slopes up here, because arXiv itself grew about 100 times over.">Papers</button>
+                data-hint="Plain monthly counts, unadjusted">Papers</button>
         <button data-mode="index" aria-pressed="false"
-                data-hint="Every line starts at 100 in its first month, so you compare how fast things grew rather than how big they are.">Indexed</button>
+                data-hint="Every line starts at 100">Indexed</button>
         <button data-mode="yoy" aria-pressed="false"
-                data-hint="Change against the same month a year earlier. Cancels out the yearly conference cycle.">YoY</button>
+                data-hint="Change against the same month last year">YoY</button>
       </div>
       <div class="segmented" id="smooth-control" role="group" aria-label="Smoothing">
         <button data-smooth="0" aria-pressed="false"
-                data-hint="Every month exactly as measured, with a shaded band showing how much of the wobble is just small numbers.">Raw</button>
+                data-hint="Every month, with a confidence band">Raw</button>
         <button data-smooth="3" aria-pressed="true"
-                data-hint="Each point averaged with the month either side. Takes the edge off without moving anything.">3 mo</button>
+                data-hint="Averaged over 3 months">3 mo</button>
         <button data-smooth="6" aria-pressed="false"
-                data-hint="Averaged across 6 months. Smoother, and small dips stop being visible.">6 mo</button>
+                data-hint="Averaged over 6 months">6 mo</button>
         <button data-smooth="12" aria-pressed="false"
-                data-hint="Averaged across a full year, which erases the conference cycle entirely and leaves only the long trend.">12 mo</button>
+                data-hint="Averaged over a year, so the conference cycle disappears">12 mo</button>
       </div>
     </div>
 
@@ -175,21 +175,24 @@
 <footer>
   <div class="wrap">
     <div class="stat-label">How this is built</div>
-    <p>
-      A paper is counted in the month it was <strong>first posted</strong>, so revising an old
-      paper cannot move it into the present. A paper counts in every field it is listed under,
-      which is what arXiv's own <code>cat:</code> search does, so the numbers here should match
-      what you find there. Shares always divide by the total papers in the same snapshot.
-    </p>
-    <p>
-      Some limits worth knowing. Fields are recorded as they stand today, so a 2010 paper added
-      to machine learning in 2024 still counts as machine learning back in 2010. Titles and
-      abstracts are the latest version, so a 2016 paper revised in 2025 can appear to use a 2025
-      word in 2016. And arXiv is not all of science. High energy physics posts nearly
-      everything, chemistry and clinical medicine post very little, so comparing across fields
-      partly measures posting habits.
-    </p>
-    <p>
+    <div class="footer-cols">
+      <p>
+        A paper is counted in the month it was <strong>first posted</strong>, so revising an old
+        paper cannot move it into the present. A paper counts in every field it is listed under,
+        which is what arXiv's own <code>cat:</code> search does, so the numbers here should
+        match what you find there. Shares always divide by the total papers in the same
+        snapshot.
+      </p>
+      <p>
+        Some limits worth knowing. Fields are recorded as they stand today, so a 2010 paper
+        added to machine learning in 2024 still counts as machine learning back in 2010. Titles
+        and abstracts are the latest version, so a 2016 paper revised in 2025 can appear to use
+        a 2025 word in 2016. And arXiv is not all of science. High energy physics posts nearly
+        everything, chemistry and clinical medicine post very little, so comparing across fields
+        partly measures posting habits.
+      </p>
+    </div>
+    <p class="colophon">
       Built from <a href="https://arxiv.org">arXiv.org</a> metadata, released under CC0, with
       thanks to arXiv for supporting open access. TrendXiv is an independent project and is not
       affiliated with or endorsed by arXiv or Cornell University.

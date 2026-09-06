@@ -141,6 +141,9 @@ async function buildSeries(selection) {
 
 /* --------------------------------------------------------------------- hints */
 
+/** How long a pointer must rest on a control before its hint appears. */
+const HINT_DELAY_MS = 3000;
+
 const hint = document.createElement('div');
 hint.className = 'hint';
 hint.setAttribute('role', 'tooltip');
@@ -153,6 +156,7 @@ hint.setAttribute('role', 'tooltip');
  */
 function wireHints() {
   document.body.appendChild(hint);
+  let timer;
 
   const show = (target) => {
     const text = target.getAttribute('data-hint');
@@ -168,18 +172,31 @@ function wireHints() {
     hint.style.left = `${Math.max(8,
       Math.min(window.innerWidth - width - 8, box.left + box.width / 2 - width / 2))}px`;
   };
-  const hide = () => hint.classList.remove('on');
+  const hide = () => {
+    clearTimeout(timer);
+    hint.classList.remove('on');
+  };
+
+  // Only a deliberate rest on a control opens a hint. Anything shorter turns a
+  // row of buttons into a trail of popups while the reader is just scanning.
+  const scheduleShow = (target) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => show(target), HINT_DELAY_MS);
+  };
 
   document.addEventListener('pointerover', (event) => {
     const target = event.target.closest('[data-hint]');
-    if (target) show(target); else hide();
+    hide();
+    if (target) scheduleShow(target);
   });
   document.addEventListener('focusin', (event) => {
     const target = event.target.closest('[data-hint]');
-    if (target) show(target);
+    if (target) scheduleShow(target);
   });
   document.addEventListener('focusout', hide);
   document.addEventListener('pointerleave', hide);
+  // A click is an answered question; the hint has nothing left to explain.
+  document.addEventListener('pointerdown', hide);
   window.addEventListener('scroll', hide, { passive: true });
 }
 
