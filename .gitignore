@@ -1,54 +1,22 @@
-# Data
-data/*.db
-data/*.sqlite
+# Build outputs. Artifacts are deployed as a Pages artifact, never committed:
+# a Pages-served Git LFS file returns the pointer text, not the file, and the
+# 100 MiB per-file block ends the discussion anyway.
+build/
+web/data/
+
+# Ingest working set (~1.5 GB) and downloaded snapshot shards.
+data/cache/
 
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+.venv/
 *.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Testing
 .coverage
 htmlcov/
 .pytest_cache/
-.tox/
+.ruff_cache/
 
-# Streamlit
-.streamlit/secrets.toml
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Playwright MCP screenshots
+# Tooling
 .playwright-mcp/
+.DS_Store

@@ -1,146 +1,96 @@
 # TrendXiv
 
-Google Trends for arXiv - visualize publication trends across scientific categories and keywords.
+Research trends across all of arXiv, built from 3.1 million papers since 1991 and
+measured as a share of the corpus, with seasonality removed and uncertainty shown.
 
-## Overview
+**Free to host. No server, no database, no API keys.** A weekly GitHub Actions job
+compiles the entire arXiv corpus into a handful of static JSON files; GitHub Pages
+serves them; the browser fetches ~90 KB and draws.
 
-TrendXiv is a Streamlit dashboard that lets you explore and compare publication trends on arXiv. Track the rise of Machine Learning, compare NLP vs Computer Vision, or search for specific keywords like "transformer" or "diffusion" to see their growth over time.
+## Why it isn't just a line chart
 
-## Features
+arXiv grew about 102× between 1992 and today and is still running **+27% year over
+year**. Any tool that plots raw keyword counts is substantially plotting arXiv's own
+growth curve. TrendXiv shows **share of the corpus** by default, with the denominator
+named on the axis and the numerator in every tooltip.
 
-- **Category Trends**: Compare publication volume across arXiv categories (cs.LG, cs.AI, cs.CL, etc.)
-- **Keyword Search**: Track mentions of specific terms in paper titles and abstracts
-- **Normalization**: Toggle between absolute counts and relative share (%)
-- **Smoothing**: Apply 3-month or 6-month moving averages to reduce noise
-- **Multiple Chart Types**: Line, area, and bar charts
-- **Data Persistence**: SQLite database caches fetched papers locally
+Beyond that:
 
-## Installation
+| | What it does | Why it beats the naive version |
+|---|---|---|
+| **Wilson intervals** | Every series carries a band, with an overdispersion correction | Wald intervals degenerate at k=0, exactly the regime a term tool lives in |
+| **Kleinberg bursts** | Dated intervals, not a wiggly line | "diffusion entered a level-3 burst 2022-04 → 2023-11" is a claim you can check |
+| **Rising board** | Empirical-Bayes shrinkage + Benjamini-Hochberg FDR | 1 paper → 5 papers is not a "+400% breakout" |
+| **Deadline fingerprint** | Month-of-year seasonal index per field via STL | cs.CV peaks in March (CVPR); math.AP is nearly flat |
+| **Lifecycle fits** | Logistic/Gompertz with an identifiability gate | Saturation is never reported from a pre-inflection fit |
+| **Provisional masking** | Trailing incomplete months hatched and excluded from inference | An 87% "collapse" in the current month is a calendar artifact |
 
-### Prerequisites
+## Architecture
 
-- Python 3.11+
-- pip or uv package manager
+```
+Weekly GitHub Actions job (unmetered on public repos)
+  │
+  ├─ ingest    DuckDB reads the pinned arXiv snapshot shard by shard.
+  │            Peak disk stays ~350 MB; the network is touched once.
+  │            Categories are canonicalised AND deduplicated per paper.
+  │
+  ├─ cube      category × month counts in three attribution modes
+  ├─ terms     term × month document frequency, sharded by first letter
+  ├─ analyze   seasonality, bursts, rising terms, lifecycle fits
+  └─ validate  gates against arXiv's published monthly totals
+  │
+  ▼
+build/  ──►  actions/upload-pages-artifact  ──►  GitHub Pages
+```
 
-### Setup
+Artifacts are **never committed**. A Pages-served Git LFS file returns the pointer
+text, not the file, and a 100 MiB per-file block ends the discussion anyway.
+
+Everything statistical happens offline in Python and is unit-tested. The browser
+receives finished numbers and draws them; it computes no statistics of its own.
+
+## Quick start
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/TrendXiv.git
-cd TrendXiv
-
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
+uv venv --python 3.12 .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+
+python -m src.pipeline.run_ingest      # ~15 min, ~3 GB transferred, once
+python -m src.pipeline.build --out web/data
+python -m http.server 8777 -d web      # open http://127.0.0.1:8777
 ```
 
-## Usage
+Iterating on the frontend only? `--skip-terms` builds the category cube and the
+seasonal artifact in about a second.
 
-### Running Locally
+## Data notes, stated plainly
 
-```bash
-streamlit run src/main.py
-```
+Papers are bucketed by their **v1 submission date**, never `update_date`: the latter
+piles revisions of old papers into recent months and rewrites history on every build.
 
-The app will open in your browser at `http://localhost:8501`.
+Category counts default to **any-listing** attribution, matching arXiv's own `cat:`
+queries, so a number here can be checked against arxiv.org. Primary-only and
+fractional modes ship alongside.
 
-### First Time Setup
+Three limits no free data source can fix, surfaced in the UI rather than buried:
 
-1. Select categories from the sidebar (default: cs.LG, cs.AI, cs.CL)
-2. Click "Fetch Latest Data" to download papers from arXiv
-3. Wait for the data to load (this may take a few minutes)
-4. Explore the trends!
-
-### Configuration
-
-Environment variables (optional):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TRENDXIV_DATABASE_PATH` | `data/trendxiv.db` | SQLite database location |
-| `TRENDXIV_ARXIV_DELAY_SECONDS` | `3.0` | Delay between API requests |
-| `TRENDXIV_DEFAULT_LOOKBACK_YEARS` | `5` | Default date range |
+1. **Category membership is current, not historical.** A 2010 paper cross-listed into
+   cs.LG in 2024 counts in cs.LG's 2010 bucket, so today's taxonomy is back-projected
+   onto history.
+2. **Text is the latest revision's.** A 2016 paper revised in 2025 can register a 2025
+   term in 2016.
+3. **arXiv is not science.** Preprinting is near-universal in high-energy physics and
+   weak in chemistry and clinical medicine, so cross-field comparisons partly measure
+   preprinting culture.
 
 ## Development
 
-### Running Tests
-
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=src --cov-report=html
-
-# Run only unit tests
-pytest -m unit
-
-# Run only integration tests
-pytest -m integration
-```
-
-### Linting
-
-```bash
-# Check code style
 ruff check src tests
-
-# Auto-fix issues
-ruff check --fix src tests
-
-# Format code
-ruff format src tests
+pytest -q
 ```
 
-### Project Structure
+## Licence
 
-```
-TrendXiv/
-├── src/
-│   ├── api/           # arXiv API client
-│   ├── data/          # Data processing (aggregation, normalization)
-│   ├── repository/    # Database access layer
-│   ├── visualization/ # Plotly chart builders
-│   ├── common/        # Config and constants
-│   └── main.py        # Streamlit application
-├── tests/
-│   ├── unit/          # Unit tests
-│   └── integration/   # Integration tests
-├── data/              # SQLite database (gitignored)
-└── pyproject.toml     # Project configuration
-```
-
-## Deployment
-
-### Streamlit Cloud
-
-1. Push your code to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect your repository
-4. Set the main file path to `src/main.py`
-5. Deploy!
-
-Note: On Streamlit Cloud, the database will reset on each deployment. For persistent data, consider using a cloud database.
-
-## Data Sources
-
-- **arXiv API**: https://info.arxiv.org/help/api/index.html
-- Rate limit: 3 seconds between requests (enforced automatically)
-- Data updates: arXiv updates once daily
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Write tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
+MIT. arXiv metadata is CC0. TrendXiv is not affiliated with or endorsed by arXiv or
+Cornell University.

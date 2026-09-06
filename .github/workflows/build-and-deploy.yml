@@ -1,0 +1,160 @@
+name: Build and deploy
+
+on:
+  schedule:
+    # Saturday, off-peak minute. The upstream snapshot lands Friday evening UTC.
+    # Never use minute 0 of an hour: that is when every naive cron on GitHub
+    # fires at once and scheduled runs get delayed or dropped.
+    - cron: '17 4 * * 6'
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Publish the result to GitHub Pages'
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'src/pipeline/**'
+      - 'src/analysis/**'
+      - 'data/reference/**'
+      - '.github/workflows/build-and-deploy.yml'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330  # The hard job cap is 360; fail before GitHub kills us.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Runner capacity
+        run: |
+          echo "cpus: $(nproc)"
+          free -g | head -2
+          df -h / | tail -1
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint and test
+        run: |
+          ruff check src tests
+          pytest tests/unit -q --no-cov
+
+      # The working set is ~1 GB and the ingest is the only network-bound step.
+      # Restoring it turns a re-run into a two-minute job and means a transient
+      # upstream outage degrades to stale-but-correct rather than to nothing.
+      - name: Restore ingest cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/cache/trendxiv.duckdb
+          key: ingest-${{ hashFiles('src/pipeline/ingest.py') }}-${{ github.run_id }}
+          restore-keys: |
+            ingest-${{ hashFiles('src/pipeline/ingest.py') }}-
+
+      - name: Ingest snapshot
+        run: python -m src.pipeline.run_ingest
+
+      - name: Save ingest cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/cache/trendxiv.duckdb
+          key: ingest-${{ hashFiles('src/pipeline/ingest.py') }}-${{ github.run_id }}
+
+      - name: Build artifacts
+        run: python -m src.pipeline.build --out web/data
+
+      - name: Report artifact sizes
+        run: |
+          echo "### Artifact sizes" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          du -ch web/data | tail -20 >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, pathlib
+          m = json.loads(pathlib.Path("web/data/manifest.json").read_text())
+          print("### Validation")
+          for c in m["validation"]:
+              print(f"- {'PASS' if c['ok'] else 'FAIL'} **{c['check']}**: {c['detail']}")
+          PY
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      # Two jobs in one commit: it is the freshness stamp, and it is what resets
+      # the 60-day inactivity timer that otherwise silently disables this cron.
+      # A PAT is used deliberately -- a GITHUB_TOKEN commit may not count as
+      # repository activity for that timer.
+      - name: Touch build stamp
+        if: github.event_name == 'schedule'
+        env:
+          GH_PAT: ${{ secrets.KEEPALIVE_PAT }}
+        run: |
+          python - <<'PY'
+          import json, pathlib, datetime
+          p = pathlib.Path("data/reference/last_build.json")
+          m = json.loads(pathlib.Path("web/data/manifest.json").read_text())
+          p.write_text(json.dumps({
+              "built_at": m["built_at"],
+              "corpus_rows": m["corpus_rows"],
+              "data_complete_through": m["data_complete_through"],
+          }, indent=2) + "\n")
+          PY
+          git config user.name  'trendxiv-bot'
+          git config user.email 'trendxiv-bot@users.noreply.github.com'
+          git add data/reference/last_build.json
+          git diff --staged --quiet || git commit -m "chore: record build $(date -u +%Y-%m-%d)"
+          if [ -n "$GH_PAT" ]; then
+            git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git"
+          fi
+          git push || echo "push skipped"
+
+      - name: Open an issue if the build failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Build failed: ${context.workflow} run ${context.runId}`;
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'build-failure',
+            });
+            if (!existing.data.length) {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo, title,
+                labels: ['build-failure'],
+                body: `The scheduled build failed.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              });
+            }
+
+  deploy:
+    needs: build
+    # A manual run can build without publishing, which is how the pipeline gets
+    # exercised on a free runner before anyone commits to putting it online.
+    if: github.event_name != 'workflow_dispatch' || inputs.deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,562 @@
+# Curated timeline annotations for TrendXiv charts.
+#
+# Every `date` is the arXiv v1 posting month, taken from the <published> field of
+# the arXiv API (which reports v1, not the latest revision), NOT the journal
+# publication month, the conference month, or the press-release month. Where the
+# two differ the `description` says so, because a flag drawn a year away from the
+# posting month it claims to mark is worse than no flag at all.
+#
+# `on_arxiv: false` marks work that was never posted to arXiv. Those events still
+# belong on the timeline (AlexNet moved the whole field without an arXiv record),
+# but the flag must not imply an arXiv posting that does not exist.
+#
+# Schema (all fields required):
+#   date        YYYY-MM
+#   label       full name, shown on hover
+#   short       <= 18 chars, the on-chart flag
+#   url         primary source
+#   scope       categories/terms the event is relevant to; [] means global
+#   weight      1-5, decides which of several colliding flags renders
+#   kind        paper | model | release | policy | infrastructure | taxonomy
+#   description one sentence of context
+#   on_arxiv    whether the work itself was posted to arXiv
+
+- date: "1991-08"
+  label: "arXiv launches as hep-th@xxx.lanl.gov"
+  short: "arXiv launches"
+  url: "https://info.arxiv.org/about/index.html"
+  scope: []
+  weight: 5
+  kind: "infrastructure"
+  description: "Paul Ginsparg automates a string-theory email list at Los Alamos, creating the archive this whole chart is drawn from."
+  on_arxiv: false
+
+- date: "1995-08"
+  label: "Shor's factoring algorithm"
+  short: "Shor's algorithm"
+  url: "https://arxiv.org/abs/quant-ph/9508027"
+  scope: ["quant-ph", "cs.CC", "cs.CR"]
+  weight: 5
+  kind: "paper"
+  description: "Polynomial-time quantum factoring, the result that turned quantum computing into a funded field."
+  on_arxiv: true
+
+- date: "1997-11"
+  label: "Maldacena's AdS/CFT correspondence"
+  short: "AdS/CFT"
+  url: "https://arxiv.org/abs/hep-th/9711200"
+  scope: ["hep-th", "gr-qc"]
+  weight: 5
+  kind: "paper"
+  description: "The most-cited paper in hep-th history; the duality reorganised two decades of theoretical physics."
+  on_arxiv: true
+
+- date: "1998-03"
+  label: "cs.LG created in the cs archive expansion"
+  short: "cs.LG created"
+  url: "https://info.arxiv.org/new/index.html"
+  scope: ["cs.LG"]
+  weight: 2
+  kind: "taxonomy"
+  description: "Machine learning gets its own category; papers posted before this month were never reclassified into it."
+  on_arxiv: false
+
+- date: "1998-05"
+  label: "Riess et al., evidence for an accelerating universe"
+  short: "Accelerating univ"
+  url: "https://arxiv.org/abs/astro-ph/9805201"
+  scope: ["astro-ph", "astro-ph.CO"]
+  weight: 5
+  kind: "paper"
+  description: "High-z Supernova Search Team reports acceleration, introducing dark energy to observational cosmology."
+  on_arxiv: true
+
+- date: "1998-07"
+  label: "Super-Kamiokande evidence for neutrino oscillation"
+  short: "Neutrino osc."
+  url: "https://arxiv.org/abs/hep-ex/9807003"
+  scope: ["hep-ex", "hep-ph"]
+  weight: 4
+  kind: "paper"
+  description: "First strong evidence that neutrinos have mass, the earliest crack in the Standard Model."
+  on_arxiv: true
+
+- date: "1998-12"
+  label: "Perlmutter et al., Omega and Lambda from 42 supernovae"
+  short: "42 supernovae"
+  url: "https://arxiv.org/abs/astro-ph/9812133"
+  scope: ["astro-ph", "astro-ph.CO"]
+  weight: 4
+  kind: "paper"
+  description: "The Supernova Cosmology Project's independent confirmation of cosmic acceleration."
+  on_arxiv: true
+
+- date: "2001-02"
+  label: "Draft human genome sequence published"
+  short: "Human genome"
+  url: "https://www.nature.com/articles/35057062"
+  scope: ["q-bio", "q-bio.GN"]
+  weight: 4
+  kind: "paper"
+  description: "Published in Nature and Science, not on arXiv; quantitative biology had no preprint home in 2001."
+  on_arxiv: false
+
+- date: "2002-11"
+  label: "Perelman, the entropy formula for the Ricci flow"
+  short: "Perelman I"
+  url: "https://arxiv.org/abs/math/0211159"
+  scope: ["math.DG", "math.GT"]
+  weight: 5
+  kind: "paper"
+  description: "The Poincare conjecture proof was posted to arXiv and never submitted to a journal."
+  on_arxiv: true
+
+- date: "2003-09"
+  label: "Quantitative Biology (q-bio) archive launches"
+  short: "q-bio launches"
+  url: "https://info.arxiv.org/new/q-bio_announce.html"
+  scope: ["q-bio"]
+  weight: 3
+  kind: "taxonomy"
+  description: "Biology-adjacent postings scattered across physics archives are consolidated into q-bio."
+  on_arxiv: false
+
+- date: "2004-04"
+  label: "Green and Tao, primes contain arbitrarily long arithmetic progressions"
+  short: "Green-Tao"
+  url: "https://arxiv.org/abs/math/0404188"
+  scope: ["math.NT", "math.CO"]
+  weight: 4
+  kind: "paper"
+  description: "A landmark in additive combinatorics and the work that made Tao a household name in math.NT."
+  on_arxiv: true
+
+- date: "2004-10"
+  label: "Graphene field effect (Geim and Novoselov)"
+  short: "Graphene"
+  url: "https://arxiv.org/abs/cond-mat/0410631"
+  scope: ["cond-mat", "cond-mat.mes-hall", "cond-mat.mtrl-sci"]
+  weight: 4
+  kind: "paper"
+  description: "The graphene results that won the 2010 Nobel Prize and opened the 2D-materials literature."
+  on_arxiv: true
+
+- date: "2007-04"
+  label: "arXiv adopts YYMM.NNNN identifiers"
+  short: "New arXiv IDs"
+  url: "https://info.arxiv.org/help/arxiv_identifier.html"
+  scope: []
+  weight: 3
+  kind: "infrastructure"
+  description: "Archive-prefixed IDs (hep-th/9711200) give way to archive-neutral ones, reflecting arXiv outgrowing physics."
+  on_arxiv: false
+
+- date: "2007-04"
+  label: "Statistics (stat) archive launches"
+  short: "stat launches"
+  url: "https://info.arxiv.org/new/index.html"
+  scope: ["stat", "stat.ML"]
+  weight: 3
+  kind: "taxonomy"
+  description: "stat.ML is born here, so its series before 2007-04 is absence of a category, not absence of research."
+  on_arxiv: false
+
+- date: "2008-04"
+  label: "NIH Public Access Policy becomes mandatory"
+  short: "NIH open access"
+  url: "https://grants.nih.gov/grants/guide/notice-files/not-od-08-033.html"
+  scope: []
+  weight: 3
+  kind: "policy"
+  description: "The first large funder mandate for public deposit, and the template much later open-access policy followed."
+  on_arxiv: false
+
+- date: "2008-12"
+  label: "Quantitative Finance (q-fin) archive launches"
+  short: "q-fin launches"
+  url: "https://info.arxiv.org/new/index.html"
+  scope: ["q-fin"]
+  weight: 2
+  kind: "taxonomy"
+  description: "Launched at the depth of the financial crisis, giving econophysics a home outside physics."
+  on_arxiv: false
+
+- date: "2009-01"
+  label: "astro-ph splits into six subcategories"
+  short: "astro-ph splits"
+  url: "https://info.arxiv.org/new/index.html"
+  scope: ["astro-ph", "astro-ph.CO", "astro-ph.GA", "astro-ph.EP", "astro-ph.HE", "astro-ph.IM", "astro-ph.SR"]
+  weight: 3
+  kind: "taxonomy"
+  description: "Prior astro-ph papers were not reclassified, so each subcategory starts at a cliff rather than a trend."
+  on_arxiv: false
+
+- date: "2012-06"
+  label: "Jinek et al., programmable CRISPR-Cas9 editing"
+  short: "CRISPR-Cas9"
+  url: "https://www.science.org/doi/10.1126/science.1225829"
+  scope: ["q-bio", "q-bio.BM", "q-bio.GN"]
+  weight: 5
+  kind: "paper"
+  description: "Published in Science with no arXiv posting; biology's landmark of the decade left no trace in this corpus."
+  on_arxiv: false
+
+- date: "2012-07"
+  label: "ATLAS and CMS observe the Higgs boson"
+  short: "Higgs boson"
+  url: "https://arxiv.org/abs/1207.7214"
+  scope: ["hep-ex", "hep-ph", "hep-th"]
+  weight: 5
+  kind: "paper"
+  description: "Both collaboration papers went to arXiv the same month as the CERN announcement."
+  on_arxiv: true
+
+- date: "2012-08"
+  label: "Mochizuki posts inter-universal Teichmuller theory"
+  short: "IUT / abc claim"
+  url: "https://www.kurims.kyoto-u.ac.jp/~motizuki/papers-english.html"
+  scope: ["math.NT", "math.AG"]
+  weight: 3
+  kind: "paper"
+  description: "The claimed abc proof appeared on the author's own site, not arXiv, and remains disputed."
+  on_arxiv: false
+
+- date: "2012-10"
+  label: "AlexNet wins ImageNet"
+  short: "AlexNet"
+  url: "https://papers.nips.cc/paper_files/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html"
+  scope: ["cs.CV", "cs.LG", "cs.NE"]
+  weight: 5
+  kind: "paper"
+  description: "The paper that started the deep learning era was never posted to arXiv; the surge it caused is visible, the paper is not."
+  on_arxiv: false
+
+- date: "2013-01"
+  label: "word2vec: efficient word representations"
+  short: "word2vec"
+  url: "https://arxiv.org/abs/1301.3781"
+  scope: ["cs.CL", "cs.LG"]
+  weight: 4
+  kind: "paper"
+  description: "Dense word embeddings become standard, and cs.CL begins its shift from features to learned representations."
+  on_arxiv: true
+
+- date: "2013-05"
+  label: "Zhang, bounded gaps between primes"
+  short: "Bounded prime gaps"
+  url: "https://annals.math.princeton.edu/2014/179-3/p07"
+  scope: ["math.NT"]
+  weight: 4
+  kind: "paper"
+  description: "Submitted straight to Annals of Mathematics with no preprint; the Polymath8 follow-ups were on arXiv, the original never was."
+  on_arxiv: false
+
+- date: "2013-11"
+  label: "bioRxiv launches"
+  short: "bioRxiv launches"
+  url: "https://www.biorxiv.org/about-biorxiv"
+  scope: ["q-bio"]
+  weight: 3
+  kind: "infrastructure"
+  description: "Biology gets a dedicated preprint server, which caps how much q-bio growth arXiv could have captured."
+  on_arxiv: false
+
+- date: "2013-12"
+  label: "Kingma and Welling, auto-encoding variational Bayes"
+  short: "VAE"
+  url: "https://arxiv.org/abs/1312.6114"
+  scope: ["cs.LG", "stat.ML"]
+  weight: 4
+  kind: "paper"
+  description: "Variational autoencoders make deep generative modelling tractable and seed the latent-variable line."
+  on_arxiv: true
+
+- date: "2013-12"
+  label: "Playing Atari with deep reinforcement learning"
+  short: "Deep Q-Network"
+  url: "https://arxiv.org/abs/1312.5602"
+  scope: ["cs.LG", "cs.AI", "cs.NE"]
+  weight: 4
+  kind: "paper"
+  description: "DQN launches deep reinforcement learning as a distinct research programme."
+  on_arxiv: true
+
+- date: "2014-03"
+  label: "BICEP2 reports B-mode polarization"
+  short: "BICEP2 B-modes"
+  url: "https://arxiv.org/abs/1403.3985"
+  scope: ["astro-ph.CO", "gr-qc", "hep-ph"]
+  weight: 4
+  kind: "paper"
+  description: "A claimed primordial gravitational-wave detection later attributed to galactic dust; the response spike is real even though the result was not."
+  on_arxiv: true
+
+- date: "2014-06"
+  label: "Generative adversarial networks"
+  short: "GAN"
+  url: "https://arxiv.org/abs/1406.2661"
+  scope: ["cs.LG", "stat.ML", "cs.CV"]
+  weight: 5
+  kind: "paper"
+  description: "Adversarial training dominates generative modelling until diffusion displaces it around 2021."
+  on_arxiv: true
+
+- date: "2015-12"
+  label: "Deep residual learning (ResNet)"
+  short: "ResNet"
+  url: "https://arxiv.org/abs/1512.03385"
+  scope: ["cs.CV", "cs.LG"]
+  weight: 5
+  kind: "paper"
+  description: "Residual connections make very deep networks trainable and remain in nearly every architecture since."
+  on_arxiv: true
+
+- date: "2016-02"
+  label: "LIGO observes gravitational waves (GW150914)"
+  short: "LIGO detection"
+  url: "https://arxiv.org/abs/1602.03837"
+  scope: ["gr-qc", "astro-ph.HE", "astro-ph.CO"]
+  weight: 5
+  kind: "paper"
+  description: "First direct gravitational-wave detection, a century after the prediction; gr-qc's defining month."
+  on_arxiv: true
+
+- date: "2017-06"
+  label: "Attention Is All You Need"
+  short: "Attention"
+  url: "https://arxiv.org/abs/1706.03762"
+  scope: ["cs.LG", "cs.CL"]
+  weight: 5
+  kind: "paper"
+  description: "The Transformer; nearly every model on this timeline after 2018 is a descendant."
+  on_arxiv: true
+
+- date: "2017-09"
+  label: "eess and econ archives launch"
+  short: "eess + econ"
+  url: "https://info.arxiv.org/new/index.html"
+  scope: ["eess", "eess.SP", "eess.IV", "eess.AS", "eess.SY", "econ", "econ.EM", "econ.TH"]
+  weight: 3
+  kind: "taxonomy"
+  description: "Two new top-level archives; eess.SY absorbs cs.SY, so the older code returns nothing for all time."
+  on_arxiv: false
+
+- date: "2018-09"
+  label: "Plan S announced"
+  short: "Plan S"
+  url: "https://www.coalition-s.org/about/"
+  scope: []
+  weight: 3
+  kind: "policy"
+  description: "European funders require immediate open access, pushing preprint deposit further into normal practice."
+  on_arxiv: false
+
+- date: "2018-10"
+  label: "BERT: bidirectional transformer pretraining"
+  short: "BERT"
+  url: "https://arxiv.org/abs/1810.04805"
+  scope: ["cs.CL", "cs.LG"]
+  weight: 5
+  kind: "paper"
+  description: "Pretrain-then-finetune becomes the default in NLP; cs.CL volume changes shape from here."
+  on_arxiv: true
+
+- date: "2019-06"
+  label: "medRxiv launches"
+  short: "medRxiv launches"
+  url: "https://www.cshl.edu/new-preprint-server-for-the-health-sciences-announced-today/"
+  scope: ["q-bio"]
+  weight: 3
+  kind: "infrastructure"
+  description: "A health-sciences preprint server opens eight months before it becomes pandemic infrastructure."
+  on_arxiv: false
+
+- date: "2019-06"
+  label: "Event Horizon Telescope images M87*"
+  short: "M87 black hole"
+  url: "https://arxiv.org/abs/1906.11238"
+  scope: ["astro-ph.HE", "astro-ph.GA", "gr-qc"]
+  weight: 5
+  kind: "paper"
+  description: "The image was unveiled 10 April 2019; the six ApJL papers reached arXiv in June, which is where the flag sits."
+  on_arxiv: true
+
+- date: "2020-01"
+  label: "SARS-CoV-2 genome released publicly"
+  short: "SARS-CoV-2 genome"
+  url: "https://virological.org/t/novel-2019-coronavirus-genome/319"
+  scope: ["q-bio", "q-bio.PE", "physics.med-ph"]
+  weight: 5
+  kind: "release"
+  description: "Posted to virological.org days after sequencing, starting the fastest preprint response in the history of science."
+  on_arxiv: false
+
+- date: "2020-01"
+  label: "Scaling laws for neural language models"
+  short: "Scaling laws"
+  url: "https://arxiv.org/abs/2001.08361"
+  scope: ["cs.LG", "cs.CL"]
+  weight: 4
+  kind: "paper"
+  description: "Power-law loss curves turn model scaling into an engineering plan rather than a guess."
+  on_arxiv: true
+
+- date: "2020-03"
+  label: "COVID-19 preprint surge"
+  short: "COVID preprints"
+  url: "https://www.medrxiv.org/"
+  scope: ["q-bio", "q-bio.PE", "physics.soc-ph", "stat.AP"]
+  weight: 5
+  kind: "infrastructure"
+  description: "Epidemic modelling floods q-bio.PE and physics.soc-ph; the spike is an event, not a trend, and reverses by 2021."
+  on_arxiv: false
+
+- date: "2020-05"
+  label: "GPT-3: language models are few-shot learners"
+  short: "GPT-3"
+  url: "https://arxiv.org/abs/2005.14165"
+  scope: ["cs.CL", "cs.LG"]
+  weight: 5
+  kind: "paper"
+  description: "In-context learning at 175B parameters makes prompting a research area of its own."
+  on_arxiv: true
+
+- date: "2020-06"
+  label: "Denoising diffusion probabilistic models"
+  short: "DDPM"
+  url: "https://arxiv.org/abs/2006.11239"
+  scope: ["cs.LG", "cs.CV", "stat.ML"]
+  weight: 5
+  kind: "paper"
+  description: "Diffusion becomes competitive with GANs and, within two years, replaces them."
+  on_arxiv: true
+
+- date: "2020-10"
+  label: "An image is worth 16x16 words (ViT)"
+  short: "Vision Transformer"
+  url: "https://arxiv.org/abs/2010.11929"
+  scope: ["cs.CV", "cs.LG"]
+  weight: 5
+  kind: "paper"
+  description: "Transformers take over vision, ending the convolution-only era in cs.CV."
+  on_arxiv: true
+
+- date: "2020-11"
+  label: "AlphaFold2 result at CASP14"
+  short: "AlphaFold2"
+  url: "https://predictioncenter.org/casp14/doc/CASP14_press_release.html"
+  scope: ["q-bio.BM", "q-bio", "cs.LG"]
+  weight: 5
+  kind: "model"
+  description: "The CASP14 result was a competition outcome, not an arXiv posting; the Nature paper followed in July 2021."
+  on_arxiv: false
+
+- date: "2021-12"
+  label: "Latent diffusion models"
+  short: "Latent diffusion"
+  url: "https://arxiv.org/abs/2112.10752"
+  scope: ["cs.CV", "cs.LG"]
+  weight: 4
+  kind: "paper"
+  description: "Diffusion in latent space cuts the compute enough to run on consumer hardware; Stable Diffusion is this architecture."
+  on_arxiv: true
+
+- date: "2022-01"
+  label: "Chain-of-thought prompting"
+  short: "Chain-of-thought"
+  url: "https://arxiv.org/abs/2201.11903"
+  scope: ["cs.CL", "cs.AI", "cs.LG"]
+  weight: 4
+  kind: "paper"
+  description: "Eliciting intermediate steps improves reasoning, and starts the inference-time compute line of work."
+  on_arxiv: true
+
+- date: "2022-03"
+  label: "InstructGPT: training with human feedback"
+  short: "InstructGPT"
+  url: "https://arxiv.org/abs/2203.02155"
+  scope: ["cs.CL", "cs.LG", "cs.AI"]
+  weight: 4
+  kind: "paper"
+  description: "RLHF turns a raw language model into something people can instruct; the direct precursor to ChatGPT."
+  on_arxiv: true
+
+- date: "2022-08"
+  label: "Stable Diffusion released publicly"
+  short: "Stable Diffusion"
+  url: "https://en.wikipedia.org/wiki/Stable_Diffusion"
+  scope: ["cs.CV", "cs.LG", "cs.GR"]
+  weight: 5
+  kind: "release"
+  description: "Open weights for a capable image model; the release, not the December 2021 paper, is what moved submission volume."
+  on_arxiv: false
+
+- date: "2022-11"
+  label: "ChatGPT released"
+  short: "ChatGPT"
+  url: "https://openai.com/index/chatgpt/"
+  scope: ["cs.CL", "cs.AI", "cs.LG", "cs.HC"]
+  weight: 5
+  kind: "release"
+  description: "A product launch with no paper behind it, and the largest single inflection in cs submission volume."
+  on_arxiv: false
+
+- date: "2023-02"
+  label: "LLaMA: open foundation models"
+  short: "LLaMA"
+  url: "https://arxiv.org/abs/2302.13971"
+  scope: ["cs.CL", "cs.LG"]
+  weight: 4
+  kind: "paper"
+  description: "Usable open weights put frontier-adjacent models in academic hands and broaden who publishes on them."
+  on_arxiv: true
+
+- date: "2023-03"
+  label: "GPT-4 technical report"
+  short: "GPT-4"
+  url: "https://arxiv.org/abs/2303.08774"
+  scope: ["cs.CL", "cs.AI", "cs.LG"]
+  weight: 5
+  kind: "paper"
+  description: "A capability report that withholds architecture and training data, marking the split between industry and academic disclosure."
+  on_arxiv: true
+
+- date: "2023-07"
+  label: "LK-99 room-temperature superconductor claim"
+  short: "LK-99"
+  url: "https://arxiv.org/abs/2307.12008"
+  scope: ["cond-mat.supr-con", "cond-mat", "cond-mat.mtrl-sci"]
+  weight: 4
+  kind: "paper"
+  description: "A claim refuted within weeks by replication attempts posted to the same archive; a burst with no trend behind it."
+  on_arxiv: true
+
+- date: "2023-12"
+  label: "Mamba: selective state space models"
+  short: "Mamba"
+  url: "https://arxiv.org/abs/2312.00752"
+  scope: ["cs.LG", "cs.CL"]
+  weight: 4
+  kind: "paper"
+  description: "The first serious challenge to attention's monopoly on sequence modelling since 2017."
+  on_arxiv: true
+
+- date: "2024-05"
+  label: "AlphaFold3"
+  short: "AlphaFold3"
+  url: "https://www.nature.com/articles/s41586-024-07487-w"
+  scope: ["q-bio.BM", "q-bio", "cs.LG"]
+  weight: 4
+  kind: "model"
+  description: "Structure prediction extends to complexes and ligands; published in Nature with no arXiv preprint."
+  on_arxiv: false
+
+- date: "2025-01"
+  label: "DeepSeek-R1"
+  short: "DeepSeek-R1"
+  url: "https://arxiv.org/abs/2501.12948"
+  scope: ["cs.CL", "cs.LG", "cs.AI"]
+  weight: 5
+  kind: "paper"
+  description: "Open reasoning-model weights and a reinforcement-learning recipe, released with the paper rather than after it."
+  on_arxiv: true
