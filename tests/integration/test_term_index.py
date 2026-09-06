@@ -39,11 +39,17 @@ def test_index_applies_the_frequency_floor(con, tmp_path):
 
 @pytest.mark.integration
 def test_shards_are_written_by_first_character(con, tmp_path):
-    build_term_index(con, ["2020-01", "2020-02", "2020-03"], tmp_path, min_df=10)
+    vocab = build_term_index(con, ["2020-01", "2020-02", "2020-03"], tmp_path, min_df=10)
 
-    assert (tmp_path / "terms" / "t-t.json").exists()
-    assert (tmp_path / "terms" / "t-g.json").exists()
-    payload = json.loads((tmp_path / "terms" / "t-t.json").read_text())
+    # Filenames are content-hashed, so the manifest's shard map is the only way
+    # to find them. That indirection is the point: a rebuilt shard gets a new
+    # name and cannot be served from cache alongside a fresh manifest.
+    assert set(vocab["shards"]) == {"t", "g"}
+    for key, filename in vocab["shards"].items():
+        assert filename.startswith(f"t-{key}-") and filename.endswith(".json")
+        assert (tmp_path / "terms" / filename).exists()
+
+    payload = json.loads((tmp_path / "terms" / vocab["shards"]["t"]).read_text())
     assert "transformer" in payload
 
 
@@ -52,8 +58,9 @@ def test_sparse_encoding_round_trips(con, tmp_path):
     """The {offset, values} encoding must reconstruct the dense monthly vector."""
     periods = ["2020-01", "2020-02", "2020-03"]
 
-    build_term_index(con, periods, tmp_path, min_df=10)
-    entry = json.loads((tmp_path / "terms" / "t-t.json").read_text())["transformer"]
+    vocab = build_term_index(con, periods, tmp_path, min_df=10)
+    shard = tmp_path / "terms" / vocab["shards"]["t"]
+    entry = json.loads(shard.read_text())["transformer"]
 
     dense = [0] * len(periods)
     for i, value in enumerate(entry["v"]):
@@ -79,9 +86,13 @@ def test_shard_files_are_deterministic(con, tmp_path):
     """Stable URLs plus caching make non-deterministic output a correctness bug."""
     periods = ["2020-01", "2020-02", "2020-03"]
 
-    build_term_index(con, periods, tmp_path / "a", min_df=10)
-    build_term_index(con, periods, tmp_path / "b", min_df=10)
+    first_vocab = build_term_index(con, periods, tmp_path / "a", min_df=10)
+    second_vocab = build_term_index(con, periods, tmp_path / "b", min_df=10)
 
-    first = (tmp_path / "a" / "terms" / "t-t.json").read_bytes()
-    second = (tmp_path / "b" / "terms" / "t-t.json").read_bytes()
-    assert first == second
+    # Identical input must yield an identical hash, or every rebuild renames
+    # every shard and busts the cache for no reason.
+    assert first_vocab["shards"] == second_vocab["shards"]
+    name = first_vocab["shards"]["t"]
+    assert (tmp_path / "a" / "terms" / name).read_bytes() == (
+        tmp_path / "b" / "terms" / name
+    ).read_bytes()

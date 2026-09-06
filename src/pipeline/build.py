@@ -66,6 +66,41 @@ def write_hashed(out_dir: Path, name: str, payload: object) -> str:
     return filename
 
 
+def prune(out_dir: Path, manifest: dict) -> int:
+    """Delete artifacts the new manifest does not reference.
+
+    Content hashing renames a file whenever its contents change, so without a
+    prune every rebuild leaves its predecessor behind: 26 stale term shards and
+    ten orphaned artifacts had accumulated here. They inflate the deployed
+    artifact, and worse, they keep old code silently working against files that
+    should have vanished, which hides the very staleness hashing exists to make
+    visible.
+
+    Args:
+        out_dir: Build directory.
+        manifest: The manifest just written.
+
+    Returns:
+        Number of files removed.
+    """
+    keep = {"manifest.json"}
+    keep |= {value for value in manifest["files"].values() if isinstance(value, str)}
+    keep |= set(manifest["files"].get("terms_shards", {}).values())
+
+    removed = 0
+    for path in out_dir.rglob("*"):
+        if path.is_dir() or path.name in keep:
+            continue
+        path.unlink()
+        removed += 1
+    for path in out_dir.iterdir():
+        if path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
+    if removed:
+        logger.info("pruned %d artifact(s) no longer referenced", removed)
+    return removed
+
+
 def build(db_path: Path, out_dir: Path, skip_terms: bool = False, strict: bool = True) -> dict:
     """Build all artifacts from the ingested working set.
 
@@ -141,6 +176,7 @@ def build(db_path: Path, out_dir: Path, skip_terms: bool = False, strict: bool =
         vocab = build_term_index(con, periods, out_dir)
         files["vocab"] = write_hashed(out_dir, "vocab", vocab)
         files["terms_dir"] = "terms"
+        files["terms_shards"] = vocab["shards"]
 
         vectors = load_term_vectors(
             vocab, out_dir / "terms", len(periods), corpus_size=corpus_rows
@@ -189,6 +225,7 @@ def build(db_path: Path, out_dir: Path, skip_terms: bool = False, strict: bool =
     (out_dir / "manifest.json").write_text(
         json.dumps(manifest, separators=(",", ":")), encoding="utf-8"
     )
+    prune(out_dir, manifest)
     con.close()
     logger.info("manifest written: %d categories, %d periods", len(series), len(periods))
     return manifest

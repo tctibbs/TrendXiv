@@ -148,3 +148,33 @@ def test_content_hash_changes_with_content(working_set, tmp_path, monkeypatch):
     third = build(working_set, tmp_path / "c", skip_terms=True, strict=False)
     # ...and changed input must not.
     assert third["files"]["cube"] != first["files"]["cube"]
+
+
+@pytest.mark.integration
+def test_build_prunes_artifacts_the_manifest_no_longer_references(
+    working_set, tmp_path, monkeypatch
+):
+    """Content hashing renames a file whenever it changes, so without a prune
+    every rebuild leaves its predecessor behind. Stale files inflate the deploy
+    and let old code keep working against artifacts that should have vanished,
+    hiding the staleness that hashing exists to expose."""
+    monkeypatch.setattr("src.pipeline.build.EXPECTED_ROWS", 12)
+    out = tmp_path / "site"
+
+    first = build(working_set, out, skip_terms=True, strict=False)
+    old_cube = out / first["files"]["cube"]
+    assert old_cube.exists()
+
+    con = duckdb.connect(str(working_set))
+    con.execute("INSERT INTO cat_month VALUES ('2020-02', 'cs.AI', 5, 5, 5.0)")
+    con.close()
+    second = build(working_set, out, skip_terms=True, strict=False)
+
+    assert second["files"]["cube"] != first["files"]["cube"]
+    assert not old_cube.exists(), "the superseded cube must not ship"
+    assert (out / second["files"]["cube"]).exists()
+
+    referenced = {"manifest.json", *(
+        v for v in second["files"].values() if isinstance(v, str)
+    )}
+    assert {p.name for p in out.iterdir() if p.is_file()} <= referenced

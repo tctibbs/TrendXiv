@@ -232,10 +232,28 @@ function wireHints() {
 
 /* ------------------------------------------------------------------ tooltip */
 
-const tooltip = document.createElement('div');
-tooltip.className = 'tooltip';
+/**
+ * Tooltips are per chart, not global.
+ *
+ * A single node re-parented by each render meant the last chart to draw owned
+ * it, so hovering any other chart positioned the card relative to the wrong
+ * container and it appeared somewhere else on the page entirely.
+ */
+const tooltips = new WeakMap();
+
+function tooltipFor(host) {
+  let node = tooltips.get(host);
+  if (!node) {
+    node = document.createElement('div');
+    node.className = 'tooltip';
+    tooltips.set(host, node);
+  }
+  if (node.parentElement !== host) host.appendChild(node);
+  return node;
+}
 
 function showTooltip(host, index, event, series) {
+  const tooltip = tooltipFor(host);
   if (index === null) { tooltip.classList.remove('on'); return; }
   const periods = store.manifest.periods;
   const denom = store.totals.papers[index];
@@ -280,24 +298,15 @@ async function renderExplorer() {
   if (!state.selection.length) {
     host.innerHTML = '<p class="notice">Search for a field or a word above to start comparing.</p>';
     $('#explorer-chips').innerHTML = '';
+    currentSeries = [];
+    $('#explorer-sub').textContent = '';
+    $('#explorer-table').innerHTML = '';
+    writeUrl();
     return;
   }
   currentSeries = await buildSeries(state.selection);
-  host.style.position = 'relative';
-  if (!host.contains(tooltip)) host.appendChild(tooltip);
 
-  const events = eventsForScope(state.selection.map((s) => s.key), 4);
-  lineChart(host, {
-    periods: store.manifest.periods,
-    series: currentSeries,
-    provisionalFrom: provisionalIndex(),
-    events,
-    mode: state.mode,
-    yZero: state.mode !== 'yoy',
-    ariaLabel: `${MODE_LABEL[state.mode]} for ${state.selection.map((s) => s.label).join(', ')}`,
-    onHover: (i, ev) => showTooltip(host, i, ev, currentSeries),
-  });
-  host.appendChild(tooltip);
+  lineChart(host, explorerSpec(host));
 
   $('#explorer-sub').textContent = state.smoothWindow
     ? `${MODE_LABEL[state.mode]}, averaged over ${state.smoothWindow} months`
@@ -325,8 +334,11 @@ function renderChips() {
     close.onclick = () => { state.selection.splice(i, 1); renderExplorer(); };
     chip.appendChild(close);
     // Hover-to-dim: isolates one line without removing the others' context.
+    // Match on key, not on position: a series whose data failed to resolve is
+    // dropped from currentSeries, after which chip index and series index no
+    // longer line up and hovering dims the wrong line.
     chip.onpointerenter = () => {
-      currentSeries.forEach((s, j) => { s.dim = j !== i; });
+      currentSeries.forEach((s) => { s.dim = s.key !== item.key; });
       redrawOnly();
     };
     chip.onpointerleave = () => {
@@ -337,18 +349,26 @@ function renderChips() {
   });
 }
 
-function redrawOnly() {
-  const host = $('#explorer-chart');
-  lineChart(host, {
+/** Chart spec shared by the first render and every redraw. */
+function explorerSpec(host) {
+  return {
     periods: store.manifest.periods,
     series: currentSeries,
     provisionalFrom: provisionalIndex(),
     events: eventsForScope(state.selection.map((s) => s.key), 4),
     mode: state.mode,
     yZero: state.mode !== 'yoy',
+    // Built here rather than at the call site so a redraw cannot silently drop
+    // the accessible name and leave the chart announced as "Time series chart".
+    ariaLabel: `${MODE_LABEL[state.mode]} for ${
+      state.selection.map((s) => s.label).join(', ')}`,
     onHover: (i, ev) => showTooltip(host, i, ev, currentSeries),
-  });
-  host.appendChild(tooltip);
+  };
+}
+
+function redrawOnly() {
+  const host = $('#explorer-chart');
+  lineChart(host, explorerSpec(host));
 }
 
 /** The hidden table doubles as a screen-reader affordance and a no-JS fallback. */
@@ -443,7 +463,6 @@ function renderHero() {
   const periods = store.manifest.periods;
   const totals = store.totals.papers;
   const host = $('#hero-chart');
-  host.style.position = 'relative';
   const series = [{
     key: 'arxiv', label: 'All arXiv', fullLabel: 'All of arXiv',
     values: smooth(totals, 3), counts: totals,
@@ -457,7 +476,6 @@ function renderHero() {
     ariaLabel: 'Monthly arXiv submissions since 1991',
     onHover: (i, ev) => showTooltip(host, i, ev, series),
   });
-  host.appendChild(tooltip);
 
   const last12 = totals.slice(cutoff - 12, cutoff);
   const prev12 = totals.slice(cutoff - 24, cutoff - 12);
@@ -491,13 +509,11 @@ function renderLandscape() {
     color: seriesColor(i),
   }));
   const host = $('#landscape-chart');
-  host.style.position = 'relative';
   lineChart(host, {
     periods, series, provisionalFrom: cutoff, mode: 'share', height: 340,
     ariaLabel: 'Share of arXiv submissions by broad area',
     onHover: (i, ev) => showTooltip(host, i, ev, series),
   });
-  host.appendChild(tooltip);
 }
 
 async function renderFingerprints() {
@@ -583,7 +599,7 @@ async function renderRising() {
         <th class="num">Log-odds</th><th></th></tr></thead>
       <tbody></tbody></table>`;
   const body = $('tbody', host);
-  for (const row of data.rows.slice(0, 20)) {
+  for (const row of data.rows) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td class="term-cell">${escape(row.term)}</td>
       <td class="spark"></td>
@@ -591,14 +607,13 @@ async function renderRising() {
       <td class="num" style="color:var(--ink-faint)">${(row.share_base * 100).toFixed(2)}%</td>
       <td class="num">${row.delta_logodds > 0 ? '+' : ''}${row.delta_logodds.toFixed(2)}</td>
       <td>${row.is_new ? '<span class="tag new">New</span>' : ''}</td>`;
-    const counts = await termSeries(row.term);
-    if (counts) {
-      // Scoped to the recent window: over the full 35-year axis every recent
-      // riser is a flat line with a spike at the right edge, which tells the
-      // reader nothing about how the rise actually unfolded.
-      const window = data.recent_months + data.baseline_months;
-      const recent = smooth(counts.slice(0, provisionalIndex()), 3).slice(-window);
-      $('.spark', tr).appendChild(sparkline(recent, { color: 'var(--s2)', width: 90 }));
+    // The points ship with the row. Fetching them instead meant pulling the
+    // vocabulary and a term shard per distinct first letter before the landing
+    // page settled, which is most of the deployed corpus for twenty sparklines.
+    if (row.spark?.length) {
+      $('.spark', tr).appendChild(
+        sparkline(smooth(row.spark, 3), { color: 'var(--s2)', width: 90 }),
+      );
     }
     $('.term-cell', tr).onclick = () => {
       addSelection(termItem(row.term));

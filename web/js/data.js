@@ -45,10 +45,17 @@ export async function loadVocab() {
   return store.vocab;
 }
 
-/** Fetch one term shard, memoised. One ordinary fetch, no query engine. */
+/**
+ * Fetch one term shard, memoised. One ordinary fetch, no query engine.
+ *
+ * Shard filenames are content-hashed and listed in the manifest, so a rebuild
+ * cannot serve a reader a stale shard alongside a fresh manifest.
+ */
 export async function loadShard(key) {
   if (store.shards.has(key)) return store.shards.get(key);
-  const promise = json(`${store.base}/terms/t-${key}.json`).catch(() => ({}));
+  const filename = store.manifest.files.terms_shards?.[key];
+  if (!filename) return {};
+  const promise = json(`${store.base}/terms/${filename}`).catch(() => ({}));
   store.shards.set(key, promise);
   return promise;
 }

@@ -34,6 +34,10 @@ BASELINE_WINDOW = 36
 #: is meaningful; STL itself requires two full periods.
 MIN_SEASONAL_MONTHS = 60
 
+#: A term needs this many papers over the whole corpus before a burst in it is
+#: worth reporting.
+MIN_BURST_PAPERS = 200
+
 #: Minimum field-specificity for a term to enter burst detection or the term
 #: discovery views. Academic prose ("enabling", "leveraging", "outperforms")
 #: bursts exactly as hard as real topics did after 2023 and sits at a similar
@@ -196,8 +200,22 @@ def rising_artifact(
     )
     survivors = survivors.iloc[keep].head(limit)
 
-    rows = [
-        {
+    # Each row carries its own sparkline. Without this the board asks the browser
+    # for the vocabulary and one term shard per distinct first letter just to
+    # draw twenty 90px sparklines, which turned a 240 KB first paint into 8 MB
+    # over a dozen serial round trips.
+    window = RECENT_WINDOW + BASELINE_WINDOW
+    start = max(0, cutoff - window)
+    spark_denom = denom[start:cutoff]
+    rows = []
+    for row in survivors.itertuples():
+        counts = term_vectors[row.term][start:cutoff]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            shares = np.divide(
+                counts, spark_denom,
+                out=np.zeros_like(counts, dtype=float), where=spark_denom > 0,
+            )
+        rows.append({
             "term": row.term,
             "share_recent": float(row.share_recent),
             "share_base": float(row.share_base),
@@ -205,9 +223,8 @@ def rising_artifact(
             "delta_lo": float(row.delta_lo),
             "q_value": float(row.q_value),
             "is_new": bool(row.is_new),
-        }
-        for row in survivors.itertuples()
-    ]
+            "spark": [round(float(v), 7) for v in shares],
+        })
     logger.info("rising: %d terms screened, %d survive at q=%.2f", len(terms), len(rows), q)
     return {"q": q, "n_screened": int(len(terms)), "rows": rows,
             "recent_months": RECENT_WINDOW, "baseline_months": BASELINE_WINDOW}
@@ -237,12 +254,17 @@ def burst_artifact(
     """
     denom = np.asarray(totals[:cutoff], dtype=float)
     window = periods[:cutoff]
-    ranked = sorted(term_vectors, key=lambda t: term_vectors[t][:cutoff].sum(), reverse=True)
 
+    # Score every eligible term, not a shortlist of the most voluminous ones.
+    # Ranking candidates by raw volume before detection meant the pool was the
+    # most common words in the corpus: "transformer" sat at rank 1157, "gan" at
+    # 3902 and "bert" at 4444, so the single most famous burst in modern research
+    # was excluded before the algorithm ever saw it, and the timeline filled up
+    # with whichever generic words happened to be frequent.
     out = []
-    for term in ranked[:limit * 4]:
+    for term in sorted(term_vectors):
         counts = np.asarray(term_vectors[term][:cutoff], dtype=float)
-        if counts.sum() < 200:
+        if counts.sum() < MIN_BURST_PAPERS:
             continue
         try:
             bursts = kleinberg_bursts(counts, denom, window)
@@ -268,8 +290,53 @@ def burst_artifact(
                 row["field_share"] = round(top[0][1], 3)
         out.append(row)
     out.sort(key=lambda row: row["weight"], reverse=True)
-    logger.info("bursts: %d terms with a detected burst", len(out))
-    return {"rows": out[:limit]}
+    selected = _balance_by_era(out, limit)
+    logger.info("bursts: %d terms burst, %d shown across %d decades",
+                len(out), len(selected), len({r["start"][:3] for r in selected}))
+    return {"rows": selected}
+
+
+def _balance_by_era(rows: list[dict], limit: int) -> list[dict]:
+    """Take the strongest bursts from each decade rather than overall.
+
+    Burst weight scales with the volume behind it, and arXiv published roughly
+    a hundred times more papers in 2025 than in 1995, so a straight ranking
+    hands 47 of 60 rows to the 2020s and the timeline stops being a timeline.
+    Filling per decade first keeps the whole 35 years legible; any unused
+    allowance falls back to the global ranking.
+
+    Args:
+        rows: Detected bursts, already sorted by descending weight.
+        limit: Total rows to return.
+
+    Returns:
+        The selected rows, still ordered by weight.
+    """
+    decades = sorted({row["start"][:3] for row in rows})
+    if not decades:
+        return []
+
+    per_decade = max(1, limit // len(decades))
+    selected: list[dict] = []
+    seen: set[str] = set()
+    for decade in decades:
+        for row in (r for r in rows if r["start"][:3] == decade):
+            if len(selected) >= limit:
+                break
+            selected.append(row)
+            seen.add(row["term"])
+            if sum(1 for r in selected if r["start"][:3] == decade) >= per_decade:
+                break
+
+    for row in rows:
+        if len(selected) >= limit:
+            break
+        if row["term"] not in seen:
+            selected.append(row)
+            seen.add(row["term"])
+
+    selected.sort(key=lambda row: row["weight"], reverse=True)
+    return selected
 
 
 def lifecycle_artifact(

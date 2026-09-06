@@ -27,6 +27,12 @@ OFFICIAL_CSV = "https://arxiv.org/stats/get_monthly_submissions"
 #: fail on the very build it was meant to certify.
 AGGREGATE_TOLERANCE = 0.01
 
+#: Accepted range for the corpus row count against the recorded baseline. The
+#: corpus only grows, so anything below 1.0 means rows went missing; the upper
+#: bound catches a snapshot that has changed shape rather than merely grown.
+MIN_GROWTH = 1.0
+MAX_GROWTH = 1.5
+
 #: Per-decade tolerance. An aggregate-only gate is where compensating errors
 #: hide, so each decade is checked separately at a looser bound.
 DECADE_TOLERANCE = 0.05
@@ -82,7 +88,7 @@ def validate(
         totals: Denominator artifact from :func:`src.pipeline.cube.build_totals`.
         cube: Category cube from :func:`src.pipeline.cube.build_cube`.
         corpus_rows: Rows actually ingested.
-        expected_rows: Rows the snapshot is documented to contain.
+        expected_rows: Baseline row count from the last known-good build.
         official: Published monthly counts; fetched if omitted.
 
     Returns:
@@ -90,10 +96,17 @@ def validate(
     """
     report = ValidationReport(passed=True)
 
+    # A growth band, not an equality. The scheduled rebuild exists to pick up new
+    # papers, so demanding an exact row count guarantees the build aborts the
+    # first week the snapshot grows and the site silently freezes on its last
+    # good deploy. What is worth catching is the corpus shrinking, or jumping so
+    # far that something upstream has changed shape.
+    growth = corpus_rows / expected_rows if expected_rows else 0.0
     report.add(
         "row_count",
-        corpus_rows == expected_rows,
-        f"ingested {corpus_rows:,} vs expected {expected_rows:,}",
+        MIN_GROWTH <= growth <= MAX_GROWTH,
+        f"ingested {corpus_rows:,} against a {expected_rows:,} baseline "
+        f"({growth:.4f}x, accepted {MIN_GROWTH}-{MAX_GROWTH}x)",
     )
     report.add(
         "axis_alignment",

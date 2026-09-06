@@ -54,6 +54,21 @@ stable name and is the single source of truth the frontend reads first.
   s = shard key.  below_threshold lets the UI say "indexed only above 10 papers"
   rather than silently rendering zeros.
 
+## Known limitation: entry-asset staleness
+
+Data artifacts are content-hashed, so a reader can never mix a fresh manifest
+with stale data. `index.html`, `styles.css` and `js/*.js` are not hashed, and
+GitHub Pages serves them with `Cache-Control: max-age=600` and permits no
+override. For up to ten minutes after a deploy a reader can therefore hold new
+data alongside old code.
+
+This is bounded and degrades safely: unknown manifest keys read as absent, and
+`loadShard` returns an empty shard rather than throwing, so search finds nothing
+rather than showing wrong numbers. Fixing it properly needs the version to
+propagate to imported modules too, which without a bundler means dynamic
+imports keyed off `import.meta.url`. Bump `manifest.schema` on any breaking
+contract change so old code can detect it.
+
 ## Rules that must not be violated
 1. Denominator is ALWAYS from this snapshot. The official arXiv CSV is a build-time
    integrity check only. (Cross-source shares drift up to 2.6%/month.)

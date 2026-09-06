@@ -13,6 +13,7 @@ engine to read a 12 MB index would cost more than downloading the index whole.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -154,15 +155,28 @@ def build_term_index(
     if current is not None:
         flush(current)
 
+    # Content-hash the shards like every other artifact. They were the only files
+    # left at a stable URL, and they are both the largest payload and the one
+    # that changes on every rebuild: a returning reader could hold a fresh
+    # manifest alongside a cached shard from the previous build and get a term
+    # series that silently stops a month short.
     terms_dir = out_dir / "terms"
     terms_dir.mkdir(parents=True, exist_ok=True)
-    for key, payload in shards.items():
-        (terms_dir / f"t-{key}.json").write_text(
-            json.dumps(payload, separators=(",", ":"), sort_keys=True), encoding="utf-8"
-        )
-    logger.info("terms: wrote %d shards", len(shards))
+    shard_files: dict[str, str] = {}
+    for key, payload in sorted(shards.items()):
+        body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        digest = hashlib.sha256(body).hexdigest()[:10]
+        filename = f"t-{key}-{digest}.json"
+        (terms_dir / filename).write_bytes(body)
+        shard_files[key] = filename
+    logger.info("terms: wrote %d hashed shards", len(shard_files))
 
-    return {"min_df": min_df, "below_threshold_count": below, "terms": vocab}
+    return {
+        "min_df": min_df,
+        "below_threshold_count": below,
+        "terms": vocab,
+        "shards": shard_files,
+    }
 
 
 #: A term used in more than this fraction of every paper arXiv has ever
