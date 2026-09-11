@@ -250,7 +250,7 @@ function tooltipFor(host) {
   return node;
 }
 
-function showTooltip(host, index, event, series) {
+function showTooltip(host, index, event, series, mode = state.mode) {
   const tooltip = tooltipFor(host);
   if (index === null) { tooltip.classList.remove('on'); return; }
   const periods = store.manifest.periods;
@@ -266,9 +266,9 @@ function showTooltip(host, index, event, series) {
     .map((r) => `<div class="tt-row">
         <span class="swatch" style="background:${r.s.color}"></span>
         <span class="name">${escape(r.s.fullLabel ?? r.s.label)}</span>
-        <span class="val">${formatValue(r.v, state.mode)}</span>
+        <span class="val">${formatValue(r.v, mode)}</span>
       </div>${
-        state.mode === 'share' && r.raw !== undefined
+        mode === 'share' && r.raw !== undefined
           ? `<div class="tt-row"><span class="swatch" style="opacity:0"></span>
                <span class="raw">${r.raw.toLocaleString()} of ${denom?.toLocaleString() ?? '?'} papers</span></div>`
           : ''
@@ -479,7 +479,7 @@ function renderHero() {
     periods, series, provisionalFrom: cutoff,
     events: eventsForScope([], 5), mode: 'count', height: 320,
     ariaLabel: 'Monthly arXiv submissions since 1991',
-    onHover: (i, ev) => showTooltip(host, i, ev, series),
+    onHover: (i, ev) => showTooltip(host, i, ev, series, 'count'),
   });
 
   const last12 = totals.slice(cutoff - 12, cutoff);
@@ -517,7 +517,7 @@ function renderLandscape() {
   lineChart(host, {
     periods, series, provisionalFrom: cutoff, mode: 'share', height: 340,
     ariaLabel: 'Share of arXiv submissions by broad area',
-    onHover: (i, ev) => showTooltip(host, i, ev, series),
+    onHover: (i, ev) => showTooltip(host, i, ev, series, 'share'),
   });
 }
 
